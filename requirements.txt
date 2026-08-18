@@ -1,0 +1,13 @@
+# Fase 1 — sistema core
+sqlalchemy>=2.0
+
+# Fase 2 — API (ainda não usado nesta fase, já previsto)
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.8
+
+# Fase 3 — Postgres via Docker (ainda não usado nesta fase, já previsto)
+psycopg2-binary>=2.9
+
+# Testes
+pytest>=8.0
