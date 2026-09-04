@@ -1,13 +1,15 @@
 ---
 name: estrutura-projeto
-description: Regras de organização de arquivos e diretórios do projeto de PDI "Sistema de Gestão de Tarefas e Projetos (To-Do Avançado)" (pasta todo-avancado). Use sempre que for criar, salvar ou mover qualquer arquivo dentro desta pasta ou de suas subpastas — código Python do sistema core, a API, configuração Docker, documentação (incluindo documentos gerados com /word-combio), scripts ou testes. Garante que nada seja criado fora da raiz do projeto e que novos tipos de conteúdo ganhem subdiretório próprio em kebab-case, em vez de arquivos soltos na raiz.
+description: Regras de organização de arquivos e diretórios do projeto de PDI "Gestor de Casos de Teste com Geração Assistida por IA" (pasta todo-avancado). Use sempre que for criar, salvar ou mover qualquer arquivo dentro desta pasta ou de suas subpastas — código Python do sistema core, a integração com IA, a API, configuração Docker, documentação (incluindo documentos gerados com /word-combio), scripts ou testes. Garante que nada seja criado fora da raiz do projeto e que novos tipos de conteúdo ganhem subdiretório próprio em kebab-case, em vez de arquivos soltos na raiz.
 ---
 
 # Estrutura do projeto todo-avancado
 
-Este projeto é o PDI pessoal do usuário: um sistema de gestão de tarefas e
-projetos em Python, evoluindo em três fases — sistema core, API sobre esse
-core, e containerização com Docker + documentação — com apresentação da API
+Este projeto é o PDI pessoal do usuário: um sistema de gestão de casos de
+teste, com geração automática de casos a partir de um documento de escopo via
+Inteligência Artificial, em Python, evoluindo em três fases — sistema core
+(incluindo a camada de IA), API sobre esse core, e containerização com Docker
++ documentação — com apresentação da API
 funcionando e da documentação em outubro/2026.
 
 ## Raiz do projeto

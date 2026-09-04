@@ -6,7 +6,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base
 
 if TYPE_CHECKING:
-    from .tarefa import Tarefa
+    from .escopo import Escopo
+    from .rodada_execucao import RodadaDeExecucao
 
 
 class Projeto(Base):
@@ -16,6 +17,9 @@ class Projeto(Base):
     nome: Mapped[str] = mapped_column(String(120))
     descricao: Mapped[str | None] = mapped_column(String(500), default=None)
 
-    tarefas: Mapped[list["Tarefa"]] = relationship(
+    escopos: Mapped[list["Escopo"]] = relationship(
+        back_populates="projeto", cascade="all, delete-orphan"
+    )
+    rodadas_execucao: Mapped[list["RodadaDeExecucao"]] = relationship(
         back_populates="projeto", cascade="all, delete-orphan"
     )

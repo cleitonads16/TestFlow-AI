@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from modelos import Base
 
-CAMINHO_BANCO = Path(__file__).resolve().parents[2] / "todo.db"
+CAMINHO_BANCO = Path(__file__).resolve().parents[2] / "casos_teste.db"
 URL_BANCO = f"sqlite:///{CAMINHO_BANCO}"
 
 engine = create_engine(URL_BANCO)
