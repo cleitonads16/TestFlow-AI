@@ -1,5 +1,5 @@
-# Fase 1 — sistema core
-sqlalchemy>=2.0
+# Fase 1 — sistema core (ORM do Django no lugar de SQLAlchemy — motivo em docs/arquitetura-e-cronograma.md, D2)
+django>=5.1
 
 # Fase 1 — extração de documentos de escopo e geração de casos via IA
 python-docx>=1.1
@@ -7,12 +7,13 @@ pypdf>=5.0
 anthropic>=0.40
 
 # Fase 2 — API (ainda não usado nesta fase, já previsto)
-fastapi>=0.115
-uvicorn[standard]>=0.30
+# Django Ninja no lugar de FastAPI — motivo em docs/arquitetura-e-cronograma.md (D1)
+django-ninja>=1.3
 pydantic>=2.8
 
-# Fase 3 — Postgres via Docker (ainda não usado nesta fase, já previsto)
-psycopg2-binary>=2.9
+# Fase 3 — MySQL via Docker, padrão ComBio (ainda não usado nesta fase, já previsto — motivo em D3)
+mysqlclient>=2.2
 
 # Testes
 pytest>=8.0
+pytest-django>=4.9

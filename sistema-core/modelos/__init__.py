@@ -1,6 +1,10 @@
-from .base import Base
-from .caso_de_teste import CasoDeTeste
-from .defeito import Defeito
+"""App Django do domínio.
+
+Este `__init__` expõe só os enums, que são Python puro: assim `ia/` e
+`documentos/` podem usá-los sem depender do Django. Os models ficam em
+`modelos.models` (importar só depois de o Django estar configurado).
+"""
+
 from .enums import (
     CategoriaCasoDeTeste,
     OrigemCasoDeTeste,
@@ -10,14 +14,8 @@ from .enums import (
     StatusEscopo,
     StatusExecucaoCaso,
 )
-from .escopo import Escopo
-from .execucao_caso import ExecucaoDeCaso
-from .geracao_ia import GeracaoIA
-from .projeto import Projeto
-from .rodada_execucao import RodadaDeExecucao
 
 __all__ = [
-    "Base",
     "Prioridade",
     "StatusEscopo",
     "CategoriaCasoDeTeste",
@@ -25,11 +23,4 @@ __all__ = [
     "StatusExecucaoCaso",
     "SeveridadeDefeito",
     "StatusDefeito",
-    "Projeto",
-    "Escopo",
-    "CasoDeTeste",
-    "RodadaDeExecucao",
-    "ExecucaoDeCaso",
-    "Defeito",
-    "GeracaoIA",
 ]

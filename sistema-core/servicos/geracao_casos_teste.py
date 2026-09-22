@@ -1,15 +1,15 @@
-from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy.orm import Session
+from django.db import transaction
+from django.utils import timezone
 
 from documentos import extrair_texto
 from ia import LLMProvider
-from modelos import CasoDeTeste, Escopo, GeracaoIA, OrigemCasoDeTeste, StatusEscopo
+from modelos import OrigemCasoDeTeste, StatusEscopo
+from modelos.models import CasoDeTeste, Escopo, GeracaoIA
 
 
 def processar_escopo(
-    sessao: Session,
     escopo: Escopo,
     caminho_arquivo: str | Path,
     provedor: LLMProvider,
@@ -21,44 +21,43 @@ def processar_escopo(
     vinculados ao Escopo (origem="ia") + registro de auditoria (GeracaoIA).
     Em caso de erro (extração ou IA), o Escopo é marcado como "erro" e a
     exceção original é repropagada para quem chamou decidir o que fazer.
+    A gravação do caminho feliz é atômica: ou salva escopo, casos e
+    auditoria juntos, ou não salva nada.
     """
     try:
         escopo.texto_extraido = extrair_texto(caminho_arquivo)
         casos_gerados = provedor.gerar_casos_teste(escopo.texto_extraido)
     except Exception:
-        escopo.status = StatusEscopo.ERRO
-        sessao.add(escopo)
-        sessao.commit()
+        escopo.status = StatusEscopo.ERRO.value
+        escopo.save()
         raise
 
-    casos = [
-        CasoDeTeste(
-            codigo=caso_gerado.codigo,
-            titulo=caso_gerado.titulo,
-            categoria=caso_gerado.categoria,
-            pre_condicao=caso_gerado.pre_condicao,
-            passos=caso_gerado.passos,
-            resultado_esperado=caso_gerado.resultado_esperado,
-            prioridade=caso_gerado.prioridade,
-            origem=OrigemCasoDeTeste.IA,
+    with transaction.atomic():
+        escopo.status = StatusEscopo.PROCESSADO.value
+        escopo.save()
+
+        casos = [
+            CasoDeTeste.objects.create(
+                codigo=caso_gerado.codigo,
+                titulo=caso_gerado.titulo,
+                categoria=caso_gerado.categoria.value,
+                pre_condicao=caso_gerado.pre_condicao,
+                passos=caso_gerado.passos,
+                resultado_esperado=caso_gerado.resultado_esperado,
+                prioridade=caso_gerado.prioridade.value,
+                origem=OrigemCasoDeTeste.IA.value,
+                escopo=escopo,
+            )
+            for caso_gerado in casos_gerados
+        ]
+
+        GeracaoIA.objects.create(
+            provedor=provedor.nome,
+            modelo=provedor.modelo,
+            quantidade_casos_gerados=len(casos),
+            tokens_utilizados=provedor.ultimo_tokens_utilizados,
+            data=timezone.now(),
             escopo=escopo,
         )
-        for caso_gerado in casos_gerados
-    ]
-    escopo.status = StatusEscopo.PROCESSADO
-
-    geracao = GeracaoIA(
-        provedor=provedor.nome,
-        modelo=provedor.modelo,
-        quantidade_casos_gerados=len(casos),
-        tokens_utilizados=provedor.ultimo_tokens_utilizados,
-        data=datetime.now(),
-        escopo=escopo,
-    )
-
-    sessao.add(escopo)
-    sessao.add_all(casos)
-    sessao.add(geracao)
-    sessao.commit()
 
     return casos

@@ -1,19 +1,9 @@
 import pytest
 from docx import Document
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from ia import CasoTesteGerado, LLMProvider
-from modelos import (
-    Base,
-    CategoriaCasoDeTeste,
-    Escopo,
-    GeracaoIA,
-    OrigemCasoDeTeste,
-    Prioridade,
-    Projeto,
-    StatusEscopo,
-)
+from modelos import CategoriaCasoDeTeste, OrigemCasoDeTeste, Prioridade, StatusEscopo
+from modelos.models import CasoDeTeste, Escopo, GeracaoIA, Projeto
 from servicos import processar_escopo
 
 
@@ -43,13 +33,7 @@ class _ProvedorFalso(LLMProvider):
         return self._casos
 
 
-@pytest.fixture
-def sessao(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'teste.db'}")
-    Base.metadata.create_all(engine)
-    Sessao = sessionmaker(bind=engine)
-    with Sessao() as sessao:
-        yield sessao
+pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
@@ -61,17 +45,15 @@ def arquivo_escopo(tmp_path):
     return caminho
 
 
-def _criar_escopo(sessao, nome_arquivo="escopo.docx"):
-    projeto = Projeto(nome="PDI - Gestor de Casos de Teste", descricao="Projeto de teste")
-    escopo = Escopo(nome_arquivo=nome_arquivo, projeto=projeto)
-    sessao.add(projeto)
-    sessao.add(escopo)
-    sessao.commit()
-    return escopo
+def _criar_escopo(nome_arquivo="escopo.docx"):
+    projeto = Projeto.objects.create(
+        nome="PDI - Gestor de Casos de Teste", descricao="Projeto de teste"
+    )
+    return Escopo.objects.create(nome_arquivo=nome_arquivo, projeto=projeto)
 
 
-def test_processar_escopo_persiste_casos_e_registra_auditoria(sessao, arquivo_escopo):
-    escopo = _criar_escopo(sessao)
+def test_processar_escopo_persiste_casos_e_registra_auditoria(arquivo_escopo):
+    escopo = _criar_escopo()
     caso_gerado = CasoTesteGerado(
         codigo="CT-001",
         titulo="Validar login",
@@ -83,16 +65,18 @@ def test_processar_escopo_persiste_casos_e_registra_auditoria(sessao, arquivo_es
     )
     provedor = _ProvedorFalso(casos=[caso_gerado], tokens=123)
 
-    casos = processar_escopo(sessao, escopo, arquivo_escopo, provedor)
+    casos = processar_escopo(escopo, arquivo_escopo, provedor)
 
     assert len(casos) == 1
     assert casos[0].codigo == "CT-001"
     assert casos[0].origem == OrigemCasoDeTeste.IA
     assert casos[0].escopo_id == escopo.id
+    escopo.refresh_from_db()
     assert escopo.status == StatusEscopo.PROCESSADO
     assert "login" in escopo.texto_extraido.lower()
+    assert CasoDeTeste.objects.filter(escopo=escopo).count() == 1
 
-    geracao = sessao.query(GeracaoIA).one()
+    geracao = GeracaoIA.objects.get()
     assert geracao.provedor == "falso"
     assert geracao.modelo == "modelo-de-teste"
     assert geracao.quantidade_casos_gerados == 1
@@ -100,25 +84,29 @@ def test_processar_escopo_persiste_casos_e_registra_auditoria(sessao, arquivo_es
     assert geracao.escopo_id == escopo.id
 
 
-def test_processar_escopo_marca_erro_quando_ia_falha(sessao, arquivo_escopo):
-    escopo = _criar_escopo(sessao)
+def test_processar_escopo_marca_erro_quando_ia_falha(arquivo_escopo):
+    escopo = _criar_escopo()
     provedor = _ProvedorFalso(erro=RuntimeError("falha simulada na IA"))
 
     with pytest.raises(RuntimeError):
-        processar_escopo(sessao, escopo, arquivo_escopo, provedor)
+        processar_escopo(escopo, arquivo_escopo, provedor)
 
+    escopo.refresh_from_db()
     assert escopo.status == StatusEscopo.ERRO
-    assert sessao.query(GeracaoIA).count() == 0
+    assert GeracaoIA.objects.count() == 0
+    assert CasoDeTeste.objects.count() == 0
 
 
-def test_processar_escopo_marca_erro_quando_extracao_falha(sessao, tmp_path):
-    escopo = _criar_escopo(sessao, nome_arquivo="escopo.txt")
+def test_processar_escopo_marca_erro_quando_extracao_falha(tmp_path):
+    escopo = _criar_escopo(nome_arquivo="escopo.txt")
     caminho_nao_suportado = tmp_path / "escopo.txt"
     caminho_nao_suportado.write_text("conteúdo qualquer", encoding="utf-8")
     provedor = _ProvedorFalso()
 
     with pytest.raises(ValueError):
-        processar_escopo(sessao, escopo, caminho_nao_suportado, provedor)
+        processar_escopo(escopo, caminho_nao_suportado, provedor)
 
+    escopo.refresh_from_db()
     assert escopo.status == StatusEscopo.ERRO
-    assert sessao.query(GeracaoIA).count() == 0
+    assert GeracaoIA.objects.count() == 0
+    assert CasoDeTeste.objects.count() == 0

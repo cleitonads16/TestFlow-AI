@@ -1,38 +1,34 @@
-from typing import TYPE_CHECKING
+from django.db import models
 
-from sqlalchemy import Enum, ForeignKey, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from .base import Base
-from .enums import CategoriaCasoDeTeste, OrigemCasoDeTeste, Prioridade
-
-if TYPE_CHECKING:
-    from .escopo import Escopo
-    from .execucao_caso import ExecucaoDeCaso
+from .enums import CategoriaCasoDeTeste, OrigemCasoDeTeste, Prioridade, como_choices
 
 
-class CasoDeTeste(Base):
-    __tablename__ = "casos_de_teste"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    codigo: Mapped[str] = mapped_column(String(20))
-    titulo: Mapped[str] = mapped_column(String(200))
-    categoria: Mapped[CategoriaCasoDeTeste] = mapped_column(
-        Enum(CategoriaCasoDeTeste), default=CategoriaCasoDeTeste.FUNCIONAL
+class CasoDeTeste(models.Model):
+    codigo = models.CharField(max_length=20)
+    titulo = models.CharField(max_length=200)
+    categoria = models.CharField(
+        max_length=20,
+        choices=como_choices(CategoriaCasoDeTeste),
+        default=CategoriaCasoDeTeste.FUNCIONAL.value,
     )
-    pre_condicao: Mapped[str | None] = mapped_column(Text, default=None)
-    passos: Mapped[str | None] = mapped_column(Text, default=None)
-    resultado_esperado: Mapped[str | None] = mapped_column(Text, default=None)
-    prioridade: Mapped[Prioridade] = mapped_column(
-        Enum(Prioridade), default=Prioridade.MEDIA
+    pre_condicao = models.TextField(null=True, blank=True)
+    passos = models.TextField(null=True, blank=True)
+    resultado_esperado = models.TextField(null=True, blank=True)
+    prioridade = models.CharField(
+        max_length=20, choices=como_choices(Prioridade), default=Prioridade.MEDIA.value
     )
-    origem: Mapped[OrigemCasoDeTeste] = mapped_column(
-        Enum(OrigemCasoDeTeste), default=OrigemCasoDeTeste.MANUAL
+    origem = models.CharField(
+        max_length=20,
+        choices=como_choices(OrigemCasoDeTeste),
+        default=OrigemCasoDeTeste.MANUAL.value,
     )
 
-    escopo_id: Mapped[int] = mapped_column(ForeignKey("escopos.id"))
-    escopo: Mapped["Escopo"] = relationship(back_populates="casos_de_teste")
-
-    execucoes: Mapped[list["ExecucaoDeCaso"]] = relationship(
-        back_populates="caso_de_teste", cascade="all, delete-orphan"
+    escopo = models.ForeignKey(
+        "modelos.Escopo", on_delete=models.CASCADE, related_name="casos_de_teste"
     )
+
+    class Meta:
+        db_table = "casos_de_teste"
+
+    def __str__(self) -> str:
+        return f"{self.codigo} — {self.titulo}"

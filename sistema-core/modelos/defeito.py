@@ -1,26 +1,22 @@
-from typing import TYPE_CHECKING
+from django.db import models
 
-from sqlalchemy import Enum, ForeignKey, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from .base import Base
-from .enums import SeveridadeDefeito, StatusDefeito
-
-if TYPE_CHECKING:
-    from .execucao_caso import ExecucaoDeCaso
+from .enums import SeveridadeDefeito, StatusDefeito, como_choices
 
 
-class Defeito(Base):
-    __tablename__ = "defeitos"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    descricao: Mapped[str] = mapped_column(String(1000))
-    severidade: Mapped[SeveridadeDefeito] = mapped_column(
-        Enum(SeveridadeDefeito), default=SeveridadeDefeito.MEDIA
+class Defeito(models.Model):
+    descricao = models.CharField(max_length=1000)
+    severidade = models.CharField(
+        max_length=20,
+        choices=como_choices(SeveridadeDefeito),
+        default=SeveridadeDefeito.MEDIA.value,
     )
-    status: Mapped[StatusDefeito] = mapped_column(
-        Enum(StatusDefeito), default=StatusDefeito.ABERTO
+    status = models.CharField(
+        max_length=20, choices=como_choices(StatusDefeito), default=StatusDefeito.ABERTO.value
     )
 
-    execucao_id: Mapped[int] = mapped_column(ForeignKey("execucoes_caso.id"))
-    execucao: Mapped["ExecucaoDeCaso"] = relationship(back_populates="defeitos")
+    execucao = models.ForeignKey(
+        "modelos.ExecucaoDeCaso", on_delete=models.CASCADE, related_name="defeitos"
+    )
+
+    class Meta:
+        db_table = "defeitos"

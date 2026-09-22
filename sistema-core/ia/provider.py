@@ -8,7 +8,7 @@ from modelos import CategoriaCasoDeTeste, Prioridade
 class CasoTesteGerado:
     """Caso de teste gerado por um provedor de IA, antes de virar um CasoDeTeste persistido.
 
-    É um tipo de dados simples (não é o modelo SQLAlchemy) para que a camada
+    É um tipo de dados simples (não é um model do ORM) para que a camada
     de IA não precise conhecer detalhes de persistência — quem grava no banco
     é o serviço que consome o provedor.
     """

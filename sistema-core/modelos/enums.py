@@ -44,3 +44,8 @@ class StatusDefeito(str, enum.Enum):
     EM_ANALISE = "em_analise"
     CORRIGIDO = "corrigido"
     FECHADO = "fechado"
+
+
+def como_choices(enum_classe: type[enum.Enum]) -> list[tuple[str, str]]:
+    """Converte um enum em `choices` de campo Django sem acoplar os enums ao Django."""
+    return [(membro.value, membro.value) for membro in enum_classe]

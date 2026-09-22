@@ -1,3 +1,4 @@
 [tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
 pythonpath = ["sistema-core", "api"]
 testpaths = ["testes"]

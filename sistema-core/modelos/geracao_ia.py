@@ -1,26 +1,18 @@
-from datetime import datetime
-from typing import TYPE_CHECKING
-
-from sqlalchemy import DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from .base import Base
-
-if TYPE_CHECKING:
-    from .escopo import Escopo
+from django.db import models
 
 
-class GeracaoIA(Base):
+class GeracaoIA(models.Model):
     """Registro de auditoria de cada chamada ao provedor de IA para gerar casos de teste."""
 
-    __tablename__ = "geracoes_ia"
+    provedor = models.CharField(max_length=50)
+    modelo = models.CharField(max_length=50)
+    quantidade_casos_gerados = models.IntegerField(default=0)
+    tokens_utilizados = models.IntegerField(null=True, blank=True)
+    data = models.DateTimeField(null=True, blank=True)
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    provedor: Mapped[str] = mapped_column(String(50))
-    modelo: Mapped[str] = mapped_column(String(50))
-    quantidade_casos_gerados: Mapped[int] = mapped_column(Integer, default=0)
-    tokens_utilizados: Mapped[int | None] = mapped_column(Integer, default=None)
-    data: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    escopo = models.ForeignKey(
+        "modelos.Escopo", on_delete=models.CASCADE, related_name="geracoes_ia"
+    )
 
-    escopo_id: Mapped[int] = mapped_column(ForeignKey("escopos.id"))
-    escopo: Mapped["Escopo"] = relationship(back_populates="geracoes_ia")
+    class Meta:
+        db_table = "geracoes_ia"

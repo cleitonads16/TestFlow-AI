@@ -1,35 +1,22 @@
-from datetime import datetime
-from typing import TYPE_CHECKING
+from django.db import models
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from .base import Base
-from .enums import StatusEscopo
-
-if TYPE_CHECKING:
-    from .caso_de_teste import CasoDeTeste
-    from .geracao_ia import GeracaoIA
-    from .projeto import Projeto
+from .enums import StatusEscopo, como_choices
 
 
-class Escopo(Base):
-    __tablename__ = "escopos"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    nome_arquivo: Mapped[str] = mapped_column(String(255))
-    texto_extraido: Mapped[str | None] = mapped_column(Text, default=None)
-    status: Mapped[StatusEscopo] = mapped_column(
-        Enum(StatusEscopo), default=StatusEscopo.PENDENTE
+class Escopo(models.Model):
+    nome_arquivo = models.CharField(max_length=255)
+    texto_extraido = models.TextField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20, choices=como_choices(StatusEscopo), default=StatusEscopo.PENDENTE.value
     )
-    data_upload: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    data_upload = models.DateTimeField(null=True, blank=True)
 
-    projeto_id: Mapped[int] = mapped_column(ForeignKey("projetos.id"))
-    projeto: Mapped["Projeto"] = relationship(back_populates="escopos")
+    projeto = models.ForeignKey(
+        "modelos.Projeto", on_delete=models.CASCADE, related_name="escopos"
+    )
 
-    casos_de_teste: Mapped[list["CasoDeTeste"]] = relationship(
-        back_populates="escopo", cascade="all, delete-orphan"
-    )
-    geracoes_ia: Mapped[list["GeracaoIA"]] = relationship(
-        back_populates="escopo", cascade="all, delete-orphan"
-    )
+    class Meta:
+        db_table = "escopos"
+
+    def __str__(self) -> str:
+        return self.nome_arquivo
