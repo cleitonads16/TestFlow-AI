@@ -21,3 +21,8 @@ class ExecucaoDeCaso(models.Model):
 
     class Meta:
         db_table = "execucoes_caso"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["rodada", "caso_de_teste"], name="caso_unico_por_rodada"
+            )
+        ]

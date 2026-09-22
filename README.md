@@ -12,7 +12,7 @@ Construído em camadas, cada fase reaproveitando a anterior:
   - `modelos/` — app Django com `Projeto`, `Escopo`, `CasoDeTeste`, `RodadaDeExecucao`, `ExecucaoDeCaso`, `Defeito`, `GeracaoIA` (ORM do Django + migrations)
   - `documentos/` — extração de texto de escopo (docx/pdf)
   - `ia/` — interface `LLMProvider` + adaptador `ProvedorClaude` (Anthropic SDK, saída estruturada via tool call)
-  - `servicos/` — orquestração (extrair escopo → gerar casos via IA → persistir)
+  - `servicos/` — regras de negócio: geração via IA (extrair escopo → gerar casos → persistir), CRUD manual de casos de teste, rodadas, execuções e defeitos
 - **Fase 2 — API** (`api/`): projeto Django (`config/`) + camada HTTP com Django Ninja (routers e Schemas) sobre o core.
 - **Fase 3 — Docker** (`docker/`): containerização (API + MySQL).
 
@@ -30,7 +30,7 @@ Python 3 · Django + Django Ninja · ORM do Django · MySQL (Docker; SQLite só 
 
 ## Status atual
 
-Fase 1 em andamento. Concluídas: modelagem do domínio, extração de texto de escopo, geração de casos de teste via IA e persistência (com auditoria em `GeracaoIA`), já migradas para o ORM do Django. Próximo passo (Semana 4): regras de negócio de execução (rodadas, execuções, defeitos) e CRUD manual de casos de teste.
+Fase 1 implementada: modelagem do domínio, extração de texto de escopo, geração de casos de teste via IA com auditoria em `GeracaoIA`, CRUD manual de casos de teste e regras de execução (rodadas, execuções, defeitos), tudo sobre o ORM do Django, com 36 testes. Falta a revisão de código com o dev mais experiente para fechar a fase. Próximo passo (Semana 5): API com Django Ninja.
 
 ## Rodando os testes
 

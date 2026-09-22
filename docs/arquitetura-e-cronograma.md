@@ -84,6 +84,25 @@ A pasta `sistema-core/repositorio/` (sessão/engine do SQLAlchemy) deixa de exis
 
 Operações do core (Fase 1): extrair texto de um documento de escopo; gerar casos de teste via IA a partir desse texto (um escopo por vez); criar, listar, atualizar e excluir casos de teste manualmente; organizar casos em rodadas de execução; registrar execução e defeitos.
 
+### Regras de negócio implementadas (Semana 4)
+
+Os serviços ficam em `sistema-core/servicos/` (`casos_teste.py`, `execucoes.py`, `geracao_casos_teste.py`). Toda violação levanta `RegraDeNegocioViolada`, que a API da Fase 2 traduz para uma resposta HTTP 4xx padronizada. Valores de enum podem chegar como membro do enum ou como texto (ex.: `"alta"`), e valores fora do domínio são recusados com a lista de valores permitidos.
+
+| Regra | Por quê |
+|---|---|
+| Código do caso de teste é obrigatório e único dentro do escopo | Os casos são referenciados pelo código nas rodadas e na comunicação da equipe; dois `CT-001` no mesmo escopo gerariam ambiguidade. Escopos diferentes podem repetir códigos |
+| Campos de texto obrigatórios (código, título, nome da rodada, descrição do defeito) não aceitam vazio ou só espaços | Evita registros sem significado que atrapalham a leitura dos resultados |
+| A edição de um caso não altera a `origem` | Um caso gerado por IA e revisado pelo usuário continua registrado como `ia`, preservando a rastreabilidade da geração (auditoria em `GeracaoIA`). Só os campos de conteúdo são editáveis |
+| Caso que já entrou em alguma rodada não pode ser excluído | Excluir apagaria em cascata o histórico de execuções e defeitos, que é a evidência dos testes realizados |
+| Rodada: data de fim não pode ser anterior à de início | Consistência do período de execução |
+| Rodada só aceita casos do mesmo projeto | Uma rodada testa um projeto; misturar casos de outro projeto distorce os resultados |
+| Cada caso entra uma única vez por rodada (validado no serviço e garantido no banco pela constraint `caso_unico_por_rodada`) | Reexecutar um caso na mesma rodada é registrar de novo o mesmo resultado, não criar uma segunda execução. A constraint protege mesmo contra gravações que não passem pelo serviço |
+| Criação de rodada com casos é atômica | Se algum caso for recusado, nada é gravado; não fica rodada pela metade |
+| Resultado de execução deve ser `passou`, `falhou` ou `bloqueado`; a data de execução é gravada automaticamente | `pendente` é só o estado inicial. A data automática garante que todo resultado tenha quando foi obtido |
+| Execução `bloqueado` exige observação | Quem lê o resultado precisa saber qual é o impedimento para destravá-lo |
+| Defeito só pode ser registrado em execução com status `falhou`, e nasce `aberto` | Defeito é consequência de uma falha observada; em execução que passou ou está pendente ele não tem origem rastreável |
+| `resumo_rodada` conta execuções por status | Base para acompanhar o andamento de uma rodada (será exposto pela API) |
+
 ## 4. Camada de IA — Geração de Casos de Teste
 
 **Fluxo:**
@@ -178,7 +197,7 @@ Base: apresentação final em outubro/2026 (API funcionando + geração de casos
 | 1 | 02–08/set | Fase 1 | ✅ Remodelagem do domínio (Projeto, Escopo, CasoDeTeste, RodadaDeExecucao, ExecucaoDeCaso, Defeito), ajuste do SQLAlchemy/SQLite já existente |
 | 2 | 09–15/set | Fase 1 | ✅ Extração de texto de documentos (docx/pdf); interface `LLMProvider`; adaptador `ProvedorClaude` |
 | 3 | 16–22/set | Fase 1 | ✅ Geração estruturada de casos de teste via IA; persistência; testes automatizados do core |
-| 4 | 23–29/set | Fase 1 | Migração para Django: projeto Django, models + migrations, `processar_escopo` e testes existentes no ORM do Django (pytest-django). Regras de negócio de execução (rodadas, execução de casos, defeitos) e CRUD manual de casos de teste. Fechamento da Fase 1 (revisão de código com dev mais experiente, 20%) |
+| 4 | 23–29/set | Fase 1 | ✅ Migração para Django: projeto Django, models + migrations, `processar_escopo` e testes existentes no ORM do Django (pytest-django). Regras de negócio de execução (rodadas, execução de casos, defeitos) e CRUD manual de casos de teste. Fechamento da Fase 1 (revisão de código com dev mais experiente, 20%) |
 | 5 | 30/set–06/out | Fase 2 | Setup do Django Ninja (`NinjaAPI`, routers), Schemas; endpoints de escopos (upload + gerar-casos) e casos de teste |
 | 6 | 07–13/out | Fase 2 | Endpoints de rodadas/execuções/defeitos, tratamento de erros padronizado (exception handlers do Ninja), testes de integração |
 | 7 | 14–20/out | Fase 2 | Revisão do Swagger/OpenAPI (`/api/docs`), repositório Git versionado, Dockerfile da API |
@@ -196,5 +215,6 @@ Semanas 1 a 3 concluídas (sobre SQLAlchemy): remodelagem das entidades, extraç
 
 Migração para o Django concluída em 22/09/2026, adiantando o início da Semana 4: projeto Django em `api/config/`, `sistema-core/modelos/` como app Django (7 models + migration `0001_initial`, Django Admin registrado), `processar_escopo` portado para o ORM do Django com gravação atômica (`transaction.atomic`), e testes rodando com `pytest-django`. São 13 testes passando: os 12 anteriores e um novo que confere se as migrations estão em dia com os models. Os enums continuam Python puro, então `ia/` e `documentos/` seguem sem dependência de Django.
 
-Semana 4 (23–29/set), restante:
-1. Implementar as regras de execução (rodadas, `ExecucaoDeCaso`, `Defeito`) e o CRUD manual de casos de teste, com testes. Isso fecha a Fase 1 (sistema core).
+Regras de negócio da Semana 4 concluídas em 22/09/2026: CRUD manual de casos de teste (`servicos/casos_teste.py`) e rodadas, execuções e defeitos (`servicos/execucoes.py`), com as regras descritas na seção 3 e a migration `0002_caso_unico_por_rodada`. São 36 testes passando.
+
+Pendente para fechar formalmente a Fase 1 (até 29/set): a **revisão de código com o dev mais experiente** prevista no cronograma. Em seguida, a Semana 5 começa o setup do Django Ninja (`NinjaAPI`, routers e Schemas), com os endpoints de escopos (upload + gerar-casos) e de casos de teste.
