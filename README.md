@@ -30,7 +30,9 @@ Python 3 · Django + Django Ninja · ORM do Django · MySQL (Docker; SQLite só 
 
 ## Status atual
 
-Fase 1 implementada: modelagem do domínio, extração de texto de escopo, geração de casos de teste via IA com auditoria em `GeracaoIA`, CRUD manual de casos de teste e regras de execução (rodadas, execuções, defeitos), tudo sobre o ORM do Django, com 36 testes. Falta a revisão de código com o dev mais experiente para fechar a fase. Próximo passo (Semana 5): API com Django Ninja.
+Fase 1 implementada: modelagem do domínio, extração de texto de escopo, geração de casos de teste via IA com auditoria em `GeracaoIA`, CRUD manual de casos de teste e regras de execução (rodadas, execuções, defeitos), tudo sobre o ORM do Django. Revisão de código com o dev mais experiente concluída em 23/09/2026.
+
+Fase 2 em andamento: a Semana 5 foi entregue (API de projetos, upload de escopo, geração de casos via IA e CRUD de casos de teste com Django Ninja). São 74 testes. Próximo passo (Semana 6): endpoints de rodadas, execuções e defeitos.
 
 ## Rodando os testes
 
@@ -49,3 +51,9 @@ python manage.py migrate          # cria casos_teste.db (SQLite) na raiz do proj
 python manage.py createsuperuser
 python manage.py runserver        # admin em http://127.0.0.1:8000/admin/
 ```
+
+## API (Django Ninja)
+
+Com o `runserver` no ar, o Swagger fica em http://127.0.0.1:8000/api/docs. A geração de casos (`POST /api/escopos/{id}/gerar-casos`) precisa da variável `ANTHROPIC_API_KEY`; os outros endpoints funcionam sem ela. Os documentos enviados vão para `uploads/escopos/` (fora do Git; configurável por `DIRETORIO_ESCOPOS`).
+
+Fluxo básico: `POST /api/projetos` → `POST /api/projetos/{id}/escopos` (campo `arquivo`, .docx/.pdf) → `POST /api/escopos/{id}/gerar-casos` → revisar com `PATCH /api/casos-de-teste/{id}`. A lista completa de endpoints e a tradução de erros para HTTP estão na seção 3 de [`docs/arquitetura-e-cronograma.md`](docs/arquitetura-e-cronograma.md).

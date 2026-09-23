@@ -4,7 +4,7 @@ from docx import Document
 from ia import CasoTesteGerado, LLMProvider
 from modelos import CategoriaCasoDeTeste, OrigemCasoDeTeste, Prioridade, StatusEscopo
 from modelos.models import CasoDeTeste, Escopo, GeracaoIA, Projeto
-from servicos import processar_escopo
+from servicos import RegraDeNegocioViolada, processar_escopo
 
 
 class _ProvedorFalso(LLMProvider):
@@ -110,3 +110,25 @@ def test_processar_escopo_marca_erro_quando_extracao_falha(tmp_path):
     assert escopo.status == StatusEscopo.ERRO
     assert GeracaoIA.objects.count() == 0
     assert CasoDeTeste.objects.count() == 0
+
+
+def test_processar_escopo_recusa_escopo_ja_processado(arquivo_escopo):
+    escopo = _criar_escopo()
+    escopo.status = StatusEscopo.PROCESSADO.value
+    escopo.save()
+
+    with pytest.raises(RegraDeNegocioViolada, match="já foi processado"):
+        processar_escopo(escopo, arquivo_escopo, _ProvedorFalso())
+
+    assert GeracaoIA.objects.count() == 0
+
+
+def test_processar_escopo_permite_nova_tentativa_apos_erro(arquivo_escopo):
+    escopo = _criar_escopo()
+    escopo.status = StatusEscopo.ERRO.value
+    escopo.save()
+
+    processar_escopo(escopo, arquivo_escopo, _ProvedorFalso())
+
+    escopo.refresh_from_db()
+    assert escopo.status == StatusEscopo.PROCESSADO

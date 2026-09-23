@@ -1,9 +1,11 @@
+import anthropic
 import pytest
 
 from ia import (
     CasoTesteGerado,
     LLMProvider,
     ProvedorClaude,
+    ProvedorIAIndisponivel,
     RespostaIAInvalida,
     obter_provedor_llm,
 )
@@ -96,3 +98,21 @@ def test_obter_provedor_llm_retorna_provedor_claude_por_padrao(monkeypatch):
 def test_obter_provedor_llm_rejeita_provedor_desconhecido():
     with pytest.raises(ValueError):
         obter_provedor_llm("provedor-inexistente")
+
+
+class _ClienteComFalha:
+    @property
+    def messages(self):
+        return self
+
+    def create(self, **kwargs):
+        raise anthropic.AnthropicError("sem credencial")
+
+
+def test_provedor_claude_traduz_erro_do_sdk_para_provedor_indisponivel():
+    provedor = ProvedorClaude(cliente=_ClienteComFalha())
+
+    with pytest.raises(ProvedorIAIndisponivel) as erro:
+        provedor.gerar_casos_teste("Texto do escopo de exemplo")
+
+    assert isinstance(erro.value.__cause__, anthropic.AnthropicError)

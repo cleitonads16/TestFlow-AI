@@ -2,7 +2,7 @@ import anthropic
 
 from modelos import CategoriaCasoDeTeste, Prioridade
 
-from .erros import RespostaIAInvalida
+from .erros import ProvedorIAIndisponivel, RespostaIAInvalida
 from .provider import CasoTesteGerado, LLMProvider
 
 MODELO_PADRAO = "claude-opus-5"
@@ -94,21 +94,26 @@ class ProvedorClaude(LLMProvider):
         return self._ultimo_tokens_utilizados
 
     def gerar_casos_teste(self, texto_escopo: str) -> list[CasoTesteGerado]:
-        resposta = self._cliente.messages.create(
-            model=self._modelo,
-            max_tokens=16000,
-            system=_PROMPT_SISTEMA,
-            tools=[_FERRAMENTA_REGISTRAR_CASOS],
-            tool_choice={"type": "tool", "name": "registrar_casos_de_teste"},
-            messages=[
-                {
-                    "role": "user",
-                    "content": (
-                        "Gere os casos de teste para o escopo abaixo:\n\n" + texto_escopo
-                    ),
-                }
-            ],
-        )
+        try:
+            resposta = self._cliente.messages.create(
+                model=self._modelo,
+                max_tokens=16000,
+                system=_PROMPT_SISTEMA,
+                tools=[_FERRAMENTA_REGISTRAR_CASOS],
+                tool_choice={"type": "tool", "name": "registrar_casos_de_teste"},
+                messages=[
+                    {
+                        "role": "user",
+                        "content": (
+                            "Gere os casos de teste para o escopo abaixo:\n\n" + texto_escopo
+                        ),
+                    }
+                ],
+            )
+        except anthropic.AnthropicError as erro:
+            raise ProvedorIAIndisponivel(
+                "Não foi possível obter resposta do provedor de IA (Claude)."
+            ) from erro
 
         uso = getattr(resposta, "usage", None)
         if uso is not None:

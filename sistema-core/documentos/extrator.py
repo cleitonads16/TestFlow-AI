@@ -23,6 +23,8 @@ _EXTRATORES = {
     ".pdf": _extrair_texto_pdf,
 }
 
+FORMATOS_SUPORTADOS = tuple(_EXTRATORES)
+
 
 def extrair_texto(caminho: str | Path) -> str:
     """Extrai o texto de um documento de escopo (.docx ou .pdf).

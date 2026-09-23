@@ -5,6 +5,7 @@ from .casos_teste import (
     listar_casos_teste,
 )
 from .erros import RegraDeNegocioViolada
+from .escopos import caminho_documento, listar_escopos, registrar_escopo
 from .execucoes import (
     adicionar_casos_a_rodada,
     atualizar_status_defeito,
@@ -14,9 +15,15 @@ from .execucoes import (
     resumo_rodada,
 )
 from .geracao_casos_teste import processar_escopo
+from .projetos import criar_projeto, listar_projetos
 
 __all__ = [
     "RegraDeNegocioViolada",
+    "criar_projeto",
+    "listar_projetos",
+    "registrar_escopo",
+    "listar_escopos",
+    "caminho_documento",
     "processar_escopo",
     "criar_caso_teste",
     "listar_casos_teste",

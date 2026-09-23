@@ -8,6 +8,8 @@ from ia import LLMProvider
 from modelos import OrigemCasoDeTeste, StatusEscopo
 from modelos.models import CasoDeTeste, Escopo, GeracaoIA
 
+from .erros import RegraDeNegocioViolada
+
 
 def processar_escopo(
     escopo: Escopo,
@@ -23,7 +25,16 @@ def processar_escopo(
     exceção original é repropagada para quem chamou decidir o que fazer.
     A gravação do caminho feliz é atômica: ou salva escopo, casos e
     auditoria juntos, ou não salva nada.
+
+    Um escopo já processado não é gerado de novo: isso duplicaria os casos
+    (e seus códigos) e descartaria as revisões feitas pelo usuário. Escopos
+    "pendente" ou "erro" podem ser processados (o "erro" permite nova tentativa).
     """
+    if escopo.status == StatusEscopo.PROCESSADO:
+        raise RegraDeNegocioViolada(
+            f"O escopo {escopo.nome_arquivo} já foi processado; os casos gerados já existem."
+        )
+
     try:
         escopo.texto_extraido = extrair_texto(caminho_arquivo)
         casos_gerados = provedor.gerar_casos_teste(escopo.texto_extraido)

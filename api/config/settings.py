@@ -92,6 +92,8 @@ else:
         }
     }
 
+DIRETORIO_ESCOPOS = Path(os.getenv("DIRETORIO_ESCOPOS", RAIZ_PROJETO / "uploads" / "escopos"))
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LANGUAGE_CODE = "pt-br"
