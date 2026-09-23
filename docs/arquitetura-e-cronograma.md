@@ -2,7 +2,7 @@
 
 > Documento técnico de apoio ao desenvolvimento. Complementa `docs/escopo-projeto.docx` (visão de negócio/PDI) com decisões de arquitetura e o cronograma semana a semana até a apresentação de outubro/2026.
 
-**Versão:** 2.2
+**Versão:** 2.3
 **Data:** 23/09/2026
 **Projeto:** todo-avancado (PDI 2026-2027 — Cleiton Ferreira)
 
@@ -18,6 +18,7 @@
 | 2.0 | 02/09/2026 | Replanejamento para Gestor de Casos de Teste com IA |
 | 2.1 | 22/09/2026 | FastAPI → Django Ninja; SQLAlchemy → ORM do Django; PostgreSQL → MySQL; cronograma das Semanas 4 a 8 ajustado |
 | 2.2 | 23/09/2026 | Semana 5 adiantada: API de projetos, escopos e casos de teste; regras de upload e de reprocessamento; tradução de erros para HTTP |
+| 2.3 | 23/09/2026 | Semana 6 adiantada: API de rodadas, execuções e defeitos; formato único de erro com `codigo`; 409 para conflitos |
 
 ---
 
@@ -107,21 +108,31 @@ Os serviços ficam em `sistema-core/servicos/` (`casos_teste.py`, `execucoes.py`
 | *(Semana 5)* O documento é gravado com o id do escopo como nome (`uploads/escopos/<id>.<ext>`), e não com o nome enviado | Um nome de arquivo malicioso (ex.: `../../settings.py`) não consegue escolher onde o arquivo é salvo. O nome original fica só em `Escopo.nome_arquivo` |
 | *(Semana 5)* Um escopo já `processado` não é gerado de novo; `pendente` e `erro` podem ser processados | Gerar de novo duplicaria os casos (e seus códigos) e descartaria as revisões do usuário. O status `erro` permite tentar outra vez depois de uma falha da IA |
 
-### Tradução de erros para HTTP (Semana 5)
+### Tradução de erros para HTTP (Semanas 5 e 6)
 
-Os routers não tratam erros. Os exception handlers registrados em `api/config/api.py` fazem a tradução, sempre com o corpo `{"detail": "<mensagem>"}`:
+Os routers não tratam erros. Os exception handlers registrados em `api/config/api.py` fazem a tradução, e **todo erro sai no mesmo formato** (`schemas.ErroSaida`):
 
-| Exceção | HTTP | Quando |
-|---|---|---|
-| Validação dos Schemas do Ninja (tipo errado, enum fora do domínio, campo faltando) | 422 | Antes de chegar ao core |
-| `RegraDeNegocioViolada`, `FormatoDocumentoNaoSuportado` | 400 | Regra da seção 3 recusou a operação |
-| `Http404` (`get_object_or_404`) | 404 | Projeto, escopo ou caso inexistente |
-| `RespostaIAInvalida` | 502 | O provedor de IA respondeu fora do formato esperado |
-| `ProvedorIAIndisponivel` | 503 | Falha ao chamar o provedor (rede, credencial, limite de uso). Cada adaptador traduz os erros do seu SDK para essa exceção, então a API não conhece o SDK da Anthropic |
+```json
+{"detail": "Mensagem legível", "codigo": "conflito"}
+{"detail": "Dados de entrada inválidos.", "codigo": "dados_invalidos",
+ "erros": [{"campo": "categoria", "origem": "body", "mensagem": "Input should be ..."}]}
+```
 
-A padronização completa (inclusive o formato dos erros 422 e códigos mais específicos, como 409 para conflitos) continua prevista para a Semana 6.
+`detail` é para a pessoa ler; `codigo` é estável e serve para quem consome a API decidir o que fazer sem depender do texto da mensagem; `erros` só aparece no 422, com um item por campo inválido.
 
-### Endpoints entregues (Semana 5)
+| Exceção | HTTP | `codigo` | Quando |
+|---|---|---|---|
+| Validação dos Schemas do Ninja (tipo errado, enum fora do domínio, campo faltando) | 422 | `dados_invalidos` | Antes de chegar ao core |
+| `RegraDeNegocioViolada`, `FormatoDocumentoNaoSuportado` | 400 | `regra_de_negocio` | Uma regra da seção 3 recusou a operação (texto vazio, datas invertidas, status inválido, defeito em execução que não falhou, id de caso inexistente no corpo) |
+| `OperacaoEmConflito` (subclasse de `RegraDeNegocioViolada`) e `IntegrityError` do banco | 409 | `conflito` | O pedido é válido, mas colide com um registro existente: código repetido no escopo, caso já na rodada, escopo já processado, exclusão de caso com histórico. O `IntegrityError` cobre gravações simultâneas que passem pela validação do serviço e esbarrem na constraint do banco |
+| `Http404` (`rotas.comum.obter_ou_404`) | 404 | `nao_encontrado` | Recurso do caminho da URL inexistente, com mensagem em português e o id buscado (ex.: "Rodada de execução 42 não encontrada.") |
+| `RespostaIAInvalida` | 502 | `ia_resposta_invalida` | O provedor de IA respondeu fora do formato esperado |
+| `ProvedorIAIndisponivel` | 503 | `ia_indisponivel` | Falha ao chamar o provedor (rede, credencial, limite de uso). Cada adaptador traduz os erros do seu SDK para essa exceção, então a API não conhece o SDK da Anthropic |
+| Qualquer outra exceção | 500 | `erro_interno` | Mensagem genérica; o detalhe (traceback) vai só para o log, para não expor informação interna |
+
+**Por que 400 e não 404 para id inexistente no corpo:** o 404 fica reservado ao recurso da URL. Um `casos_ids` com um id que não existe torna o corpo do pedido inválido, então é 400, e a mensagem lista os ids não encontrados.
+
+### Endpoints entregues (Semanas 5 e 6)
 
 Swagger em `/api/docs` e OpenAPI em `/api/openapi.json`.
 
@@ -136,6 +147,18 @@ Swagger em `/api/docs` e OpenAPI em `/api/openapi.json`.
 | POST | `/api/escopos/{escopo_id}/casos-de-teste` | Cria um caso manual |
 | GET | `/api/casos-de-teste` | Lista casos; filtros opcionais `projeto_id`, `escopo_id`, `categoria`, `origem` |
 | GET / PATCH / DELETE | `/api/casos-de-teste/{caso_id}` | Detalha / revisa (só os campos enviados) / exclui um caso |
+| POST / GET | `/api/projetos/{projeto_id}/rodadas` | *(Semana 6)* Cria uma rodada (com `casos_ids` opcionais, agendados como `pendente`, tudo ou nada) / lista as rodadas do projeto |
+| GET | `/api/rodadas/{rodada_id}` | *(Semana 6)* Detalha a rodada, já com o resumo por status |
+| GET | `/api/rodadas/{rodada_id}/resumo` | *(Semana 6)* Quantidade de execuções por status, mais o total |
+| POST | `/api/rodadas/{rodada_id}/casos` | *(Semana 6)* Inclui mais casos na rodada |
+| GET | `/api/rodadas/{rodada_id}/execucoes` | *(Semana 6)* Lista as execuções da rodada, com código e título do caso; filtro opcional `status` |
+| GET | `/api/execucoes/{execucao_id}` | *(Semana 6)* Detalha uma execução |
+| PUT | `/api/execucoes/{execucao_id}/resultado` | *(Semana 6)* Registra ou corrige o resultado (`passou`, `falhou`, `bloqueado`); a data é gravada automaticamente |
+| POST / GET | `/api/execucoes/{execucao_id}/defeitos` | *(Semana 6)* Abre um defeito numa execução que falhou / lista os defeitos da execução |
+| GET | `/api/defeitos` | *(Semana 6)* Lista defeitos; filtros opcionais `projeto_id`, `rodada_id`, `status`, `severidade` |
+| GET / PATCH | `/api/defeitos/{defeito_id}` | *(Semana 6)* Detalha / muda o status do defeito |
+
+O resultado da execução usa `PUT` porque registrar o mesmo resultado duas vezes deixa a execução no mesmo estado (é idempotente), e corrigir um resultado é substituí-lo.
 
 Os endpoints de projetos não estavam no plano da Semana 5, mas foram incluídos porque, sem eles, não havia como criar pelo HTTP o projeto ao qual o escopo pertence.
 
@@ -235,7 +258,7 @@ Base: apresentação final em outubro/2026 (API funcionando + geração de casos
 | 3 | 16–22/set | Fase 1 | ✅ Geração estruturada de casos de teste via IA; persistência; testes automatizados do core |
 | 4 | 23–29/set | Fase 1 | ✅ Migração para Django: projeto Django, models + migrations, `processar_escopo` e testes existentes no ORM do Django (pytest-django). Regras de negócio de execução (rodadas, execução de casos, defeitos) e CRUD manual de casos de teste. Fechamento da Fase 1 (revisão de código com dev mais experiente, 20%) |
 | 5 | 30/set–06/out | Fase 2 | ✅ Setup do Django Ninja (`NinjaAPI`, routers), Schemas; endpoints de escopos (upload + gerar-casos) e casos de teste |
-| 6 | 07–13/out | Fase 2 | Endpoints de rodadas/execuções/defeitos, tratamento de erros padronizado (exception handlers do Ninja), testes de integração |
+| 6 | 07–13/out | Fase 2 | ✅ Endpoints de rodadas/execuções/defeitos, tratamento de erros padronizado (exception handlers do Ninja), testes de integração |
 | 7 | 14–20/out | Fase 2 | Revisão do Swagger/OpenAPI (`/api/docs`), repositório Git versionado, Dockerfile da API |
 | 8 | 21–27/out | Fase 3 | `docker-compose` (API + MySQL 8.4), migrations aplicadas no container, testes end-to-end containerizados, documentação de uso da API |
 | 9 | 28–31/out | — | Buffer + **apresentação final (outubro/2026)** |
@@ -255,4 +278,8 @@ Regras de negócio da Semana 4 concluídas em 22/09/2026: CRUD manual de casos d
 
 Semana 5 adiantada e concluída em 23/09/2026, para abrir mais tempo de testes antes da apresentação: Django Ninja configurado (`api/config/api.py`), Schemas em `api/schemas/`, routers em `api/rotas/` e os endpoints listados na seção 3. O core ganhou `servicos/projetos.py`, `servicos/escopos.py` (upload do documento), a recusa de reprocessar um escopo já processado e a exceção `ProvedorIAIndisponivel` na camada de IA. São 74 testes passando, 26 deles pela camada HTTP (cliente de teste do Django, com a IA substituída por um dublê).
 
-Revisão de código com o dev mais experiente realizada em 23/09/2026, fechando formalmente a Fase 1. Os pontos levantados foram o banco MySQL e o Django Ninja (NinjaAPI), que já estavam aplicados (decisões D1 e D3). Próximo passo (Semana 6): endpoints de rodadas, execuções e defeitos (incluindo o resumo da rodada) e a padronização completa dos erros.
+Revisão de código com o dev mais experiente realizada em 23/09/2026, fechando formalmente a Fase 1. Os pontos levantados foram o banco MySQL e o Django Ninja (NinjaAPI), que já estavam aplicados (decisões D1 e D3). 
+
+Semana 6 adiantada e concluída em 23/09/2026: endpoints de rodadas, execuções e defeitos (seção 3), formato único de erro com `codigo` estável, `OperacaoEmConflito` (409) para as regras de duplicidade e de histórico, mensagens 404 em português e erro 500 sem vazar detalhes internos. O teste de integração `testes/test_api_fluxo_completo.py` percorre o produto inteiro só pela API, do envio do escopo à correção do defeito. São 110 testes passando.
+
+Próximo passo (Semana 7): revisão do Swagger (descrições, exemplos e agrupamento), organização do repositório Git e Dockerfile da API. A imagem precisa de Python 3.12 ou mais recente, porque o código usa a sintaxe de genéricos do Python 3.12 (`rotas/comum.py`).

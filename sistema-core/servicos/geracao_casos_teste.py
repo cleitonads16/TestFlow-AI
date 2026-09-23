@@ -8,7 +8,7 @@ from ia import LLMProvider
 from modelos import OrigemCasoDeTeste, StatusEscopo
 from modelos.models import CasoDeTeste, Escopo, GeracaoIA
 
-from .erros import RegraDeNegocioViolada
+from .erros import OperacaoEmConflito
 
 
 def processar_escopo(
@@ -31,7 +31,7 @@ def processar_escopo(
     "pendente" ou "erro" podem ser processados (o "erro" permite nova tentativa).
     """
     if escopo.status == StatusEscopo.PROCESSADO:
-        raise RegraDeNegocioViolada(
+        raise OperacaoEmConflito(
             f"O escopo {escopo.nome_arquivo} já foi processado; os casos gerados já existem."
         )
 

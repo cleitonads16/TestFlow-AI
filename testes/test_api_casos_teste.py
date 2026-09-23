@@ -29,12 +29,13 @@ def test_criar_caso_manual_usa_valores_padrao(client, escopo):
     assert client.get(f"/api/casos-de-teste/{caso['id']}").json() == caso
 
 
-def test_criar_caso_com_codigo_repetido_no_escopo_retorna_400(client, escopo):
+def test_criar_caso_com_codigo_repetido_no_escopo_retorna_409(client, escopo):
     _criar_caso(client, escopo.id)
 
     resposta = _criar_caso(client, escopo.id, titulo="Outro título")
 
-    assert resposta.status_code == 400
+    assert resposta.status_code == 409
+    assert resposta.json()["codigo"] == "conflito"
     assert "CT-001" in resposta.json()["detail"]
 
 
@@ -115,13 +116,13 @@ def test_excluir_caso(client, escopo):
     assert client.get(f"/api/casos-de-teste/{caso['id']}").status_code == 404
 
 
-def test_excluir_caso_que_ja_entrou_em_rodada_retorna_400(client, projeto, escopo):
+def test_excluir_caso_que_ja_entrou_em_rodada_retorna_409(client, projeto, escopo):
     caso = _criar_caso(client, escopo.id).json()
     criar_rodada(projeto, "Rodada 1", casos=[CasoDeTeste.objects.get(id=caso["id"])])
 
     resposta = client.delete(f"/api/casos-de-teste/{caso['id']}")
 
-    assert resposta.status_code == 400
+    assert resposta.status_code == 409
     assert CasoDeTeste.objects.filter(id=caso["id"]).exists()
 
 

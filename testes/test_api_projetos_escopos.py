@@ -122,14 +122,14 @@ def test_gerar_casos_persiste_e_retorna_casos(client, projeto, conteudo_docx, us
     assert "login" in detalhe["texto_extraido"].lower()
 
 
-def test_gerar_casos_de_novo_retorna_400(client, projeto, conteudo_docx, usar_provedor):
+def test_gerar_casos_de_novo_retorna_409(client, projeto, conteudo_docx, usar_provedor):
     escopo_id = _enviar_escopo(client, projeto.id, conteudo_docx).json()["id"]
     usar_provedor(_ProvedorFalso([_caso_gerado()]))
     client.post(f"/api/escopos/{escopo_id}/gerar-casos")
 
     resposta = client.post(f"/api/escopos/{escopo_id}/gerar-casos")
 
-    assert resposta.status_code == 400
+    assert resposta.status_code == 409
     assert "já foi processado" in resposta.json()["detail"]
     assert CasoDeTeste.objects.count() == 1
 

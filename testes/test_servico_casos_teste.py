@@ -111,3 +111,21 @@ def test_excluir_caso_ja_executado_e_recusado(escopo, projeto):
         excluir_caso_teste(caso)
 
     assert CasoDeTeste.objects.count() == 1
+
+
+def test_obter_casos_por_ids_preserva_a_ordem(escopo):
+    from servicos import obter_casos_por_ids
+
+    primeiro = criar_caso_teste(escopo, codigo="CT-001", titulo="A")
+    segundo = criar_caso_teste(escopo, codigo="CT-002", titulo="B")
+
+    assert obter_casos_por_ids([segundo.id, primeiro.id]) == [segundo, primeiro]
+
+
+def test_obter_casos_por_ids_recusa_ids_inexistentes(escopo):
+    from servicos import obter_casos_por_ids
+
+    caso = criar_caso_teste(escopo, codigo="CT-001", titulo="A")
+
+    with pytest.raises(RegraDeNegocioViolada, match="998, 999"):
+        obter_casos_por_ids([caso.id, 998, 999])

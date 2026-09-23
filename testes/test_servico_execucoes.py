@@ -6,11 +6,15 @@ from django.db import IntegrityError, transaction
 from modelos import SeveridadeDefeito, StatusDefeito, StatusExecucaoCaso
 from modelos.models import Defeito, Escopo, ExecucaoDeCaso, Projeto, RodadaDeExecucao
 from servicos import (
+    OperacaoEmConflito,
     RegraDeNegocioViolada,
     adicionar_casos_a_rodada,
     atualizar_status_defeito,
     criar_caso_teste,
     criar_rodada,
+    listar_defeitos,
+    listar_execucoes,
+    listar_rodadas,
     registrar_defeito,
     registrar_execucao,
     resumo_rodada,
@@ -152,3 +156,39 @@ def test_resumo_rodada_conta_execucoes_por_status(rodada):
         "bloqueado": 0,
         "total": 3,
     }
+
+
+def test_caso_repetido_na_rodada_e_um_conflito(rodada, casos):
+    with pytest.raises(OperacaoEmConflito):
+        adicionar_casos_a_rodada(rodada, [casos[0]])
+
+
+def test_listar_rodadas_do_projeto(projeto, rodada):
+    Projeto.objects.create(nome="Outro")
+    segunda = criar_rodada(projeto, "Rodada 2")
+
+    assert listar_rodadas(projeto) == [segunda, rodada]
+
+
+def test_listar_execucoes_filtra_por_status(rodada):
+    primeira = rodada.execucoes.order_by("id").first()
+    registrar_execucao(primeira, "passou")
+
+    assert listar_execucoes(rodada, status="passou") == [primeira]
+    assert len(listar_execucoes(rodada)) == 3
+    with pytest.raises(RegraDeNegocioViolada):
+        listar_execucoes(rodada, status="aprovado")
+
+
+def test_listar_defeitos_filtra_por_rodada_status_e_severidade(projeto, rodada):
+    execucoes = list(rodada.execucoes.order_by("id"))
+    for execucao in execucoes[:2]:
+        registrar_execucao(execucao, "falhou")
+    alta = registrar_defeito(execucoes[0], "Falha grave", "alta")
+    baixa = registrar_defeito(execucoes[1], "Falha leve", "baixa")
+    atualizar_status_defeito(baixa, "fechado")
+
+    assert set(listar_defeitos(rodada_id=rodada.id)) == {alta, baixa}
+    assert listar_defeitos(projeto_id=projeto.id, severidade="alta") == [alta]
+    assert listar_defeitos(status="fechado") == [baixa]
+    assert listar_defeitos(execucao=execucoes[0]) == [alta]

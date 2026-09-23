@@ -7,7 +7,7 @@ from django.utils import timezone
 from modelos import SeveridadeDefeito, StatusDefeito, StatusExecucaoCaso
 from modelos.models import CasoDeTeste, Defeito, ExecucaoDeCaso, Projeto, RodadaDeExecucao
 
-from .erros import RegraDeNegocioViolada, converter_enum, exigir_texto
+from .erros import OperacaoEmConflito, RegraDeNegocioViolada, converter_enum, exigir_texto
 
 
 def criar_rodada(
@@ -49,7 +49,7 @@ def adicionar_casos_a_rodada(
                 f"O caso {caso.codigo} pertence a outro projeto e não pode entrar nesta rodada."
             )
         if caso.id in ids_ja_na_rodada:
-            raise RegraDeNegocioViolada(f"O caso {caso.codigo} já está nesta rodada.")
+            raise OperacaoEmConflito(f"O caso {caso.codigo} já está nesta rodada.")
         ids_ja_na_rodada.add(caso.id)
 
     with transaction.atomic():
@@ -120,3 +120,41 @@ def resumo_rodada(rodada: RodadaDeExecucao) -> dict[str, int]:
         resumo[status] += 1
     resumo["total"] = sum(resumo.values())
     return resumo
+
+
+def listar_rodadas(projeto: Projeto) -> list[RodadaDeExecucao]:
+    return list(projeto.rodadas_execucao.order_by("-id"))
+
+
+def listar_execucoes(
+    rodada: RodadaDeExecucao, status: StatusExecucaoCaso | str | None = None
+) -> list[ExecucaoDeCaso]:
+    consulta = rodada.execucoes.select_related("caso_de_teste").order_by("caso_de_teste__codigo")
+    if status is not None:
+        consulta = consulta.filter(
+            status=converter_enum(StatusExecucaoCaso, status, "status").value
+        )
+    return list(consulta)
+
+
+def listar_defeitos(
+    execucao: ExecucaoDeCaso | None = None,
+    rodada_id: int | None = None,
+    projeto_id: int | None = None,
+    status: StatusDefeito | str | None = None,
+    severidade: SeveridadeDefeito | str | None = None,
+) -> list[Defeito]:
+    consulta = Defeito.objects.select_related("execucao__caso_de_teste").order_by("-id")
+    if execucao is not None:
+        consulta = consulta.filter(execucao=execucao)
+    if rodada_id is not None:
+        consulta = consulta.filter(execucao__rodada_id=rodada_id)
+    if projeto_id is not None:
+        consulta = consulta.filter(execucao__rodada__projeto_id=projeto_id)
+    if status is not None:
+        consulta = consulta.filter(status=converter_enum(StatusDefeito, status, "status").value)
+    if severidade is not None:
+        consulta = consulta.filter(
+            severidade=converter_enum(SeveridadeDefeito, severidade, "severidade").value
+        )
+    return list(consulta)

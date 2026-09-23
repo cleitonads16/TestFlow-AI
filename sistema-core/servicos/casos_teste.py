@@ -1,7 +1,7 @@
 from modelos import CategoriaCasoDeTeste, OrigemCasoDeTeste, Prioridade
 from modelos.models import CasoDeTeste, Escopo
 
-from .erros import RegraDeNegocioViolada, converter_enum, exigir_texto
+from .erros import OperacaoEmConflito, RegraDeNegocioViolada, converter_enum, exigir_texto
 
 _CAMPOS_EDITAVEIS = {
     "codigo",
@@ -101,6 +101,15 @@ def atualizar_caso_teste(caso: CasoDeTeste, **campos) -> CasoDeTeste:
     return caso
 
 
+def obter_casos_por_ids(ids: list[int]) -> list[CasoDeTeste]:
+    """Busca os casos na ordem informada; recusa a lista inteira se algum id não existir."""
+    encontrados = CasoDeTeste.objects.select_related("escopo").in_bulk(ids)
+    faltando = [str(caso_id) for caso_id in dict.fromkeys(ids) if caso_id not in encontrados]
+    if faltando:
+        raise RegraDeNegocioViolada(f"Casos de teste não encontrados: {', '.join(faltando)}.")
+    return [encontrados[caso_id] for caso_id in ids]
+
+
 def excluir_caso_teste(caso: CasoDeTeste) -> None:
     """Exclui o caso, desde que ele nunca tenha entrado em uma rodada de execução.
 
@@ -108,7 +117,7 @@ def excluir_caso_teste(caso: CasoDeTeste) -> None:
     e defeitos, então isso é recusado.
     """
     if caso.execucoes.exists():
-        raise RegraDeNegocioViolada(
+        raise OperacaoEmConflito(
             f"O caso {caso.codigo} já faz parte de rodadas de execução e não pode ser excluído."
         )
     caso.delete()
@@ -116,6 +125,6 @@ def excluir_caso_teste(caso: CasoDeTeste) -> None:
 
 def _garantir_codigo_disponivel(escopo: Escopo, codigo: str) -> None:
     if CasoDeTeste.objects.filter(escopo=escopo, codigo=codigo).exists():
-        raise RegraDeNegocioViolada(
+        raise OperacaoEmConflito(
             f"Já existe um caso de teste com o código {codigo} neste escopo."
         )
