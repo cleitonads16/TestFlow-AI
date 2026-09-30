@@ -2,7 +2,7 @@
 
 > Documento técnico de apoio ao desenvolvimento. Complementa `docs/escopo-projeto.docx` (visão de negócio/PDI) com decisões de arquitetura e o cronograma semana a semana até a apresentação de outubro/2026.
 
-**Versão:** 2.4
+**Versão:** 2.5
 **Data:** 30/09/2026
 **Projeto:** todo-avancado (PDI 2026-2027 — Cleiton Ferreira)
 
@@ -20,6 +20,7 @@
 | 2.2 | 23/09/2026 | Semana 5 adiantada: API de projetos, escopos e casos de teste; regras de upload e de reprocessamento; tradução de erros para HTTP |
 | 2.3 | 23/09/2026 | Semana 6 adiantada: API de rodadas, execuções e defeitos; formato único de erro com `codigo`; 409 para conflitos |
 | 2.4 | 30/09/2026 | Semana 7 iniciada: revisão do Swagger/OpenAPI (resumos, tags na ordem do fluxo, exemplos de corpo, tabela de erros); documento de escopo ilegível passa a ser recusado com 400 no envio e na geração, em vez de 500 |
+| 2.5 | 30/09/2026 | Escopo só em `.docx` (D4); extração passa a ler tabelas; documento sem texto recusado; resposta da IA cortada ou recusada tratada; chamada à IA via streaming |
 
 ---
 
@@ -61,7 +62,7 @@ todo-avancado/
 │   ├── modelos/           # app Django do domínio: models (Projeto, Escopo, CasoDeTeste,
 │   │                      #   RodadaDeExecucao, ExecucaoDeCaso, Defeito, GeracaoIA) + migrations
 │   ├── servicos/          # regras de negócio (criar, listar, executar, etc.)
-│   ├── documentos/        # extração de texto de escopo (docx/pdf) — sem dependência de Django
+│   ├── documentos/        # extração de texto de escopo (.docx) — sem dependência de Django
 │   └── ia/                # interface LLMProvider + adaptador Claude — sem dependência de Django
 ├── api/                   # Fase 2 — camada HTTP sobre o core
 │   ├── config/            # projeto Django: settings, urls, wsgi/asgi
@@ -105,7 +106,8 @@ Os serviços ficam em `sistema-core/servicos/` (`casos_teste.py`, `execucoes.py`
 | Execução `bloqueado` exige observação | Quem lê o resultado precisa saber qual é o impedimento para destravá-lo |
 | Defeito só pode ser registrado em execução com status `falhou`, e nasce `aberto` | Defeito é consequência de uma falha observada; em execução que passou ou está pendente ele não tem origem rastreável |
 | `resumo_rodada` conta execuções por status | Base para acompanhar o andamento de uma rodada (será exposto pela API) |
-| *(Semana 5)* Documento de escopo só é aceito em `.docx` ou `.pdf`, não vazio e com até 10 MB, validado já no envio | O usuário descobre na hora que o arquivo não serve, e não só ao pedir a geração; o limite protege o servidor e o custo da chamada à IA |
+| *(Semana 5; revista na v2.5)* Documento de escopo só é aceito em `.docx` (D4), não vazio, com até 10 MB, legível e com texto, validado já no envio | O usuário descobre na hora que o arquivo não serve, e não só ao pedir a geração; o limite protege o servidor e o custo da chamada à IA. Sem a checagem de texto, um documento só com imagens chegaria vazio à IA, que poderia inventar casos |
+| *(v2.5)* A extração lê parágrafos **e tabelas**, na ordem do documento; cada linha de tabela vira uma linha de texto com as células separadas por ` \| ` | Escopos costumam trazer os requisitos em tabela. Antes, só os parágrafos eram lidos, e o conteúdo das tabelas ficava de fora sem nenhum aviso. Cabeçalho e rodapé não são lidos: costumam repetir título e logotipo, não requisitos |
 | *(Semana 5)* O documento é gravado com o id do escopo como nome (`uploads/escopos/<id>.<ext>`), e não com o nome enviado | Um nome de arquivo malicioso (ex.: `../../settings.py`) não consegue escolher onde o arquivo é salvo. O nome original fica só em `Escopo.nome_arquivo` |
 | *(Semana 5)* Um escopo já `processado` não é gerado de novo; `pendente` e `erro` podem ser processados | Gerar de novo duplicaria os casos (e seus códigos) e descartaria as revisões do usuário. O status `erro` permite tentar outra vez depois de uma falha da IA |
 
@@ -124,10 +126,10 @@ Os routers não tratam erros. Os exception handlers registrados em `api/config/a
 | Exceção | HTTP | `codigo` | Quando |
 |---|---|---|---|
 | Validação dos Schemas do Ninja (tipo errado, enum fora do domínio, campo faltando) | 422 | `dados_invalidos` | Antes de chegar ao core |
-| `RegraDeNegocioViolada`, `FormatoDocumentoNaoSuportado`, `DocumentoIlegivel` | 400 | `regra_de_negocio` | Uma regra da seção 3 recusou a operação (texto vazio, datas invertidas, status inválido, defeito em execução que não falhou, id de caso inexistente no corpo, documento de escopo corrompido ou só renomeado para .docx/.pdf) |
+| `RegraDeNegocioViolada`, `FormatoDocumentoNaoSuportado`, `DocumentoIlegivel`, `DocumentoSemTexto` | 400 | `regra_de_negocio` | Uma regra da seção 3 recusou a operação (texto vazio, datas invertidas, status inválido, defeito em execução que não falhou, id de caso inexistente no corpo, documento de escopo corrompido, só renomeado para .docx ou sem texto) |
 | `OperacaoEmConflito` (subclasse de `RegraDeNegocioViolada`) e `IntegrityError` do banco | 409 | `conflito` | O pedido é válido, mas colide com um registro existente: código repetido no escopo, caso já na rodada, escopo já processado, exclusão de caso com histórico. O `IntegrityError` cobre gravações simultâneas que passem pela validação do serviço e esbarrem na constraint do banco |
 | `Http404` (`rotas.comum.obter_ou_404`) | 404 | `nao_encontrado` | Recurso do caminho da URL inexistente, com mensagem em português e o id buscado (ex.: "Rodada de execução 42 não encontrada.") |
-| `RespostaIAInvalida` | 502 | `ia_resposta_invalida` | O provedor de IA respondeu fora do formato esperado |
+| `RespostaIAInvalida` | 502 | `ia_resposta_invalida` | O provedor de IA respondeu fora do formato esperado, cortou a resposta por tamanho (`stop_reason` `max_tokens`) ou recusou o pedido (`refusal`); cada caso tem mensagem própria, e nenhum caso parcial é gravado |
 | `ProvedorIAIndisponivel` | 503 | `ia_indisponivel` | Falha ao chamar o provedor (rede, credencial, limite de uso). Cada adaptador traduz os erros do seu SDK para essa exceção, então a API não conhece o SDK da Anthropic |
 | Qualquer outra exceção | 500 | `erro_interno` | Mensagem genérica; o detalhe (traceback) vai só para o log, para não expor informação interna |
 
@@ -168,8 +170,8 @@ Os endpoints de projetos não estavam no plano da Semana 5, mas foram incluídos
 **Fluxo:**
 
 ```
-Upload do escopo (docx/pdf)
-   → extrair texto (sistema-core/documentos)
+Upload do escopo (.docx)
+   → extrair texto: parágrafos e tabelas (sistema-core/documentos)
    → LLMProvider.gerar_casos_teste(texto)   [interface, Strategy Pattern]
    → adaptador concreto: ProvedorClaude (Anthropic SDK, tool call forçada com schema estrito)
    → casos retornam como CasoTesteGerado (dataclass, sem dependência de ORM)
@@ -178,6 +180,8 @@ Upload do escopo (docx/pdf)
 ```
 
 **Decisão de arquitetura:** a interface `LLMProvider` define o contrato (`gerar_casos_teste(texto_escopo: str) -> list[CasoTesteGerado]`) e não conhece detalhes de nenhum provedor nem do banco. A primeira implementação (`ProvedorClaude`) usa o SDK oficial `anthropic` com uma **tool call forçada** (`tool_choice`) e schema estrito (`strict: true`). Assim a resposta já chega validada no formato de `CasoTesteGerado`, sem parsing de texto livre. O provedor devolve um tipo simples (dataclass) e não um model do ORM. Por isso a troca de SQLAlchemy para o ORM do Django não afeta a camada de IA. Essa abstração permite, no futuro, adicionar outro provedor (ex.: OpenAI) implementando a mesma interface, sem exigir isso para a entrega de outubro/2026 (ver seção 7, Fora de Escopo).
+
+**Chamada à IA (v2.5):** via streaming (`messages.stream` + `get_final_message`), com até 64 mil tokens de resposta, para que um escopo grande não seja cortado; antes era uma chamada simples limitada a 16 mil. O `stop_reason` é conferido antes de ler os casos: resposta cortada ou recusada vira `RespostaIAInvalida` com mensagem própria, em vez de gravar uma lista incompleta. O modelo segue `claude-opus-5`, que aceita a tool call forçada; os modelos 5.5 não aceitam `tool_choice` forçado, então migrar para eles exige trocar para `tool_choice` `auto` + instrução no prompt.
 
 *(Correção na v2.1: a v2.0 citava structured outputs via `output_config.format`; a implementação entregue na Semana 2 usa tool call com schema estrito, que dá a mesma garantia de formato.)*
 
@@ -191,7 +195,7 @@ Upload do escopo (docx/pdf)
 | Framework web / API | Django + Django Ninja | Alinhado ao padrão de backend da ComBio (Django + Django Ninja); gera OpenAPI/Swagger automaticamente; ver D1 |
 | ORM / Persistência | ORM do Django (models + migrations) | Integração nativa com o Django Ninja, migrations versionadas e Django Admin para inspeção dos dados; ver D2 |
 | Banco de dados | MySQL 8.4 (docker-compose, Fase 3); SQLite só no desenvolvimento local e nos testes | Padrão de banco da ComBio; troca feita só pela configuração `DATABASES`, sem alterar código; ver D3 |
-| Extração de documentos | `python-docx` (Word) + `pypdf` (PDF) | Cobre os formatos mais prováveis de documento de escopo |
+| Extração de documentos | `python-docx` (Word) | Os escopos do projeto são .docx; ver D4 |
 | Integração com IA | SDK oficial `anthropic`, atrás da interface `LLMProvider` | Ferramenta homologada; saída estruturada via tool call elimina parsing frágil |
 | Validação | Schemas do Django Ninja (Pydantic) | Validação de entrada e serialização de saída, com os mesmos type hints usados no FastAPI |
 | Testes | pytest + pytest-django | Padrão de mercado; o `pytest-django` cria um banco de testes isolado por execução |
@@ -242,6 +246,16 @@ Cada decisão registra o contexto, a escolha, as alternativas avaliadas e o que 
   - O `mysqlclient` depende de bibliotecas nativas do MySQL. No Windows há wheel pronto; na imagem Docker da Fase 3, o Dockerfile precisará instalar os pacotes de build (`default-libmysqlclient-dev`, `pkg-config`).
   - O SQLite continua em uso **só como conveniência de desenvolvimento local e nos testes automatizados** (não precisa de servidor e deixa os testes rápidos). Ele não faz parte do padrão da empresa e não é usado em nenhum ambiente além da máquina do desenvolvedor. Diferenças de comportamento entre SQLite e MySQL (tipos, ordenação, collation, constraints) serão cobertas pelos testes end-to-end da Semana 8, que rodam contra o MySQL no container.
 
+### D4 — Documento de escopo: só .docx (30/09/2026)
+
+- **Contexto:** desde a Semana 2 o sistema aceitava .docx e .pdf. Antes dos primeiros testes com escopos reais, o autor definiu que o projeto vai trabalhar apenas com documentos .docx.
+- **Decisão:** aceitar só `.docx`; o suporte a PDF e a dependência `pypdf` foram removidos.
+- **Motivos:**
+  - **Um formato só, extraído com fidelidade.** O .docx guarda a estrutura do documento (parágrafos e tabelas), o que permite enviar os requisitos à IA na ordem e com as colunas das tabelas. No PDF essa estrutura se perde, e um PDF digitalizado nem tem texto.
+  - **Menos código e menos casos de erro** para testar e manter no prazo do PDI.
+- **Alternativa descartada:** manter o PDF. Exigiria tratar PDF digitalizado (OCR) e tabelas quebradas para ter a mesma qualidade de extração, sem necessidade no uso previsto.
+- **Custo:** quem tiver o escopo só em PDF precisa convertê-lo para .docx antes de enviar.
+
 ## 7. Fora de Escopo (reforçando o escopo-projeto.docx)
 
 Autenticação multiusuário, frontend, deploy em nuvem, filas/mensageria, suporte simultâneo a múltiplos provedores de IA no dia 1 (só a interface fica pronta para isso), armazenamento do conteúdo de evidências (imagens/PDF, só metadados): nada disso entra nesta primeira versão. O Django Admin é usado só como ferramenta de apoio ao desenvolvimento e não é considerado um frontend do produto.
@@ -285,4 +299,6 @@ Semana 6 adiantada e concluída em 23/09/2026: endpoints de rodadas, execuções
 
 Semana 7 iniciada em 30/09/2026 com a revisão do Swagger (ver "Endpoints entregues" na seção 3). No mesmo dia foi corrigido o erro 500 com documento de escopo ilegível (corrompido ou só renomeado): o conteúdo agora é lido já no envio (`documentos.validar_documento`), e uma falha de leitura na geração vira `DocumentoIlegivel` (400). São 130 testes passando. Os commits das Semanas 5 e 6 foram enviados para `origin/develop` no mesmo dia.
 
-Próximo passo (Semana 7): organização do repositório Git (branch `main`) e Dockerfile da API. A imagem precisa de Python 3.12 ou mais recente, porque o código usa a sintaxe de genéricos do Python 3.12 (`rotas/comum.py`).
+Ainda em 30/09/2026, preparando os testes com escopos reais: escopo só em .docx (D4), leitura das tabelas do documento, recusa de documento sem texto e tratamento de resposta da IA cortada ou recusada (seção 4). São 136 testes passando.
+
+Próximo passo (Semana 7): primeiros testes com escopos reais, organização do repositório Git (branch `main`) e Dockerfile da API. A imagem precisa de Python 3.12 ou mais recente, porque o código usa a sintaxe de genéricos do Python 3.12 (`rotas/comum.py`).

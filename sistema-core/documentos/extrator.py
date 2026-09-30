@@ -1,67 +1,84 @@
 import io
+from collections.abc import Iterator
 from pathlib import Path
 from typing import BinaryIO
 
 import docx
-from pypdf import PdfReader
+from docx.table import Table
 
-from .erros import DocumentoIlegivel, FormatoDocumentoNaoSuportado
+from .erros import DocumentoIlegivel, DocumentoSemTexto, FormatoDocumentoNaoSuportado
 
-
-def _extrair_texto_docx(origem: Path | BinaryIO) -> str:
-    documento = docx.Document(origem)
-    paragrafos = [p.text for p in documento.paragraphs if p.text.strip()]
-    return "\n".join(paragrafos)
-
-
-def _extrair_texto_pdf(origem: Path | BinaryIO) -> str:
-    leitor = PdfReader(origem)
-    paginas = [pagina.extract_text() or "" for pagina in leitor.pages]
-    return "\n".join(pagina for pagina in paginas if pagina.strip())
-
-
-_EXTRATORES = {
-    ".docx": _extrair_texto_docx,
-    ".pdf": _extrair_texto_pdf,
-}
-
-FORMATOS_SUPORTADOS = tuple(_EXTRATORES)
+FORMATOS_SUPORTADOS = (".docx",)
 
 
 def extrair_texto(caminho: str | Path) -> str:
-    """Extrai o texto de um documento de escopo (.docx ou .pdf).
+    """Extrai o texto de um documento de escopo (.docx).
 
     Um escopo por vez: a chamada recebe o caminho de um único arquivo e
     devolve o texto já pronto para ser enviado ao provedor de IA.
     """
     caminho = Path(caminho)
-    return _extrair(_extrator_para(caminho.suffix), caminho, caminho.suffix)
+    _exigir_formato_suportado(caminho.suffix)
+    return _extrair(caminho)
 
 
 def validar_documento(conteudo: bytes, extensao: str) -> None:
-    """Confere, sem gravar nada, se o conteúdo pode ser lido no formato da extensão."""
-    _extrair(_extrator_para(extensao), io.BytesIO(conteudo), extensao)
+    """Confere, sem gravar nada, se o conteúdo é um .docx legível e com texto."""
+    _exigir_formato_suportado(extensao)
+    _extrair(io.BytesIO(conteudo))
 
 
-def _extrator_para(extensao: str):
-    extrator = _EXTRATORES.get(extensao.lower())
-    if extrator is None:
+def _exigir_formato_suportado(extensao: str) -> None:
+    if extensao.lower() not in FORMATOS_SUPORTADOS:
         raise FormatoDocumentoNaoSuportado(
-            f"Formato '{extensao.lower()}' não suportado. Use .docx ou .pdf."
+            f"Formato '{extensao.lower() or 'sem extensão'}' não suportado. "
+            f"Use {' ou '.join(FORMATOS_SUPORTADOS)}."
         )
-    return extrator
 
 
-def _extrair(extrator, origem: Path | BinaryIO, extensao: str) -> str:
+def _extrair(origem: Path | BinaryIO) -> str:
     try:
-        return extrator(origem)
+        texto = "\n".join(_linhas(docx.Document(origem)))
     except OSError:
         raise
     except Exception as erro:
-        # python-docx e pypdf levantam tipos variados para arquivo inválido
-        # (BadZipFile, KeyError, PdfReadError...); todos significam o mesmo
+        # O python-docx levanta tipos variados para arquivo inválido
+        # (BadZipFile, KeyError, ValueError...); todos significam o mesmo
         # para quem enviou: o arquivo não é um documento legível.
         raise DocumentoIlegivel(
-            f"Não foi possível ler o documento como {extensao.lower()}: o arquivo "
-            "está corrompido, protegido por senha ou não é realmente desse formato."
+            "Não foi possível ler o documento como .docx: o arquivo está "
+            "corrompido, protegido por senha ou não é realmente desse formato."
         ) from erro
+    if not texto.strip():
+        raise DocumentoSemTexto(
+            "O documento de escopo não tem texto para gerar os casos de teste "
+            "(ex.: só imagens ou páginas digitalizadas)."
+        )
+    return texto
+
+
+def _linhas(recipiente) -> Iterator[str]:
+    """Parágrafos e tabelas na ordem em que aparecem no documento.
+
+    Escopos costumam trazer os requisitos em tabela; ler só os parágrafos
+    (`documento.paragraphs`) deixaria esse conteúdo de fora sem nenhum aviso.
+    """
+    for bloco in recipiente.iter_inner_content():
+        if isinstance(bloco, Table):
+            yield from _linhas_da_tabela(bloco)
+        elif bloco.text.strip():
+            yield bloco.text
+
+
+def _linhas_da_tabela(tabela: Table) -> Iterator[str]:
+    """Uma linha de texto por linha da tabela, com as células separadas por " | "."""
+    for linha in tabela.rows:
+        celulas, vistas = [], set()
+        for celula in linha.cells:
+            # Célula mesclada na horizontal se repete em `cells`; conta uma vez só.
+            if id(celula._tc) in vistas:
+                continue
+            vistas.add(id(celula._tc))
+            celulas.append(" ".join(_linhas(celula)))
+        if any(celulas):
+            yield " | ".join(celulas)

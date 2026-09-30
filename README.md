@@ -2,7 +2,7 @@
 
 Gestor de casos de teste com geração assistida por IA — projeto de PDI (2026-2027) de Cleiton Ferreira.
 
-Evolui a partir de uma ferramenta interna de gestão de casos de teste (processo PM06 no Fluig), generalizada para qualquer processo de negócio: recebe um documento de escopo (docx/pdf), extrai o texto, gera casos de teste via IA e permite organizá-los em rodadas de execução, registrando execuções e defeitos.
+Evolui a partir de uma ferramenta interna de gestão de casos de teste (processo PM06 no Fluig), generalizada para qualquer processo de negócio: recebe um documento de escopo (.docx), extrai o texto (parágrafos e tabelas), gera casos de teste via IA e permite organizá-los em rodadas de execução, registrando execuções e defeitos.
 
 ## Arquitetura
 
@@ -10,7 +10,7 @@ Construído em camadas, cada fase reaproveitando a anterior:
 
 - **Fase 1 — Sistema core** (`sistema-core/`): entidades e regras de negócio. A API não contém regra de negócio e nenhuma camada depende de um provedor de IA específico.
   - `modelos/` — app Django com `Projeto`, `Escopo`, `CasoDeTeste`, `RodadaDeExecucao`, `ExecucaoDeCaso`, `Defeito`, `GeracaoIA` (ORM do Django + migrations)
-  - `documentos/` — extração de texto de escopo (docx/pdf)
+  - `documentos/` — extração de texto de escopo (.docx)
   - `ia/` — interface `LLMProvider` + adaptador `ProvedorClaude` (Anthropic SDK, saída estruturada via tool call)
   - `servicos/` — regras de negócio: geração via IA (extrair escopo → gerar casos → persistir), CRUD manual de casos de teste, rodadas, execuções e defeitos
 - **Fase 2 — API** (`api/`): projeto Django (`config/`) + camada HTTP com Django Ninja (routers e Schemas) sobre o core.
@@ -20,7 +20,7 @@ Detalhes de arquitetura, cronograma completo e o **registro de decisões** (moti
 
 ## Stack
 
-Python 3 · Django + Django Ninja · ORM do Django · MySQL (Docker; SQLite só em dev/testes locais) · python-docx/pypdf · SDK oficial `anthropic` · Pydantic · pytest + pytest-django · Docker
+Python 3 · Django + Django Ninja · ORM do Django · MySQL (Docker; SQLite só em dev/testes locais) · python-docx · SDK oficial `anthropic` · Pydantic · pytest + pytest-django · Docker
 
 ### Por que esta stack (resumo)
 
@@ -56,4 +56,4 @@ python manage.py runserver        # admin em http://127.0.0.1:8000/admin/
 
 Com o `runserver` no ar, o Swagger fica em http://127.0.0.1:8000/api/docs. A geração de casos (`POST /api/escopos/{id}/gerar-casos`) precisa da variável `ANTHROPIC_API_KEY`; os outros endpoints funcionam sem ela. Os documentos enviados vão para `uploads/escopos/` (fora do Git; configurável por `DIRETORIO_ESCOPOS`).
 
-Fluxo básico: `POST /api/projetos` → `POST /api/projetos/{id}/escopos` (campo `arquivo`, .docx/.pdf) → `POST /api/escopos/{id}/gerar-casos` → revisar com `PATCH /api/casos-de-teste/{id}` → `POST /api/projetos/{id}/rodadas` → `PUT /api/execucoes/{id}/resultado` → `POST /api/execucoes/{id}/defeitos` → acompanhar em `GET /api/rodadas/{id}/resumo`. A lista completa de endpoints e a tradução de erros para HTTP estão na seção 3 de [`docs/arquitetura-e-cronograma.md`](docs/arquitetura-e-cronograma.md).
+Fluxo básico: `POST /api/projetos` → `POST /api/projetos/{id}/escopos` (campo `arquivo`, .docx) → `POST /api/escopos/{id}/gerar-casos` → revisar com `PATCH /api/casos-de-teste/{id}` → `POST /api/projetos/{id}/rodadas` → `PUT /api/execucoes/{id}/resultado` → `POST /api/execucoes/{id}/defeitos` → acompanhar em `GET /api/rodadas/{id}/resumo`. A lista completa de endpoints e a tradução de erros para HTTP estão na seção 3 de [`docs/arquitetura-e-cronograma.md`](docs/arquitetura-e-cronograma.md).

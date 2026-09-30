@@ -15,7 +15,7 @@ from django.http import Http404
 from ninja import NinjaAPI
 from ninja.errors import ValidationError
 
-from documentos import DocumentoIlegivel, FormatoDocumentoNaoSuportado
+from documentos import DocumentoIlegivel, DocumentoSemTexto, FormatoDocumentoNaoSuportado
 from ia import ProvedorIAIndisponivel, RespostaIAInvalida
 from rotas import casos_teste, defeitos, escopos, execucoes, projetos, rodadas
 from servicos import OperacaoEmConflito, RegraDeNegocioViolada
@@ -28,7 +28,7 @@ API do gestor de casos de teste com geração assistida por IA (projeto de PDI).
 **Fluxo de uso**, na ordem das seções abaixo:
 
 1. Crie um **projeto**.
-2. Envie o **escopo** do projeto (.docx ou .pdf) e peça a geração dos casos
+2. Envie o **escopo** do projeto (.docx) e peça a geração dos casos
    de teste via IA.
 3. Revise os **casos de teste** gerados ou cadastre casos manuais.
 4. Monte uma **rodada de execução** com os casos a testar.
@@ -107,6 +107,7 @@ def _dados_invalidos(request, erro):
 @api.exception_handler(RegraDeNegocioViolada)
 @api.exception_handler(FormatoDocumentoNaoSuportado)
 @api.exception_handler(DocumentoIlegivel)
+@api.exception_handler(DocumentoSemTexto)
 def _regra_violada(request, erro):
     return _erro(request, 400, "regra_de_negocio", str(erro))
 

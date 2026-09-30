@@ -16,10 +16,11 @@ router = Router(tags=["Escopos"])
     summary="Enviar documento de escopo",
 )
 def enviar(request, projeto_id: int, arquivo: File[UploadedFile]):
-    """Envia o documento de escopo (.docx ou .pdf, até 10 MB). O escopo nasce "pendente".
+    """Envia o documento de escopo (.docx, até 10 MB). O escopo nasce "pendente".
 
-    O formato é conferido já no envio: um arquivo em outro formato, vazio ou
-    acima do limite é recusado com 400.
+    O documento é conferido já no envio: um arquivo em outro formato, vazio,
+    acima do limite, corrompido ou sem texto (ex.: só imagens) é recusado com 400.
+    Parágrafos e tabelas do documento são enviados à IA.
     """
     projeto = obter_ou_404(Projeto, projeto_id)
     return Status(201, registrar_escopo(projeto, arquivo.name, arquivo.read()))

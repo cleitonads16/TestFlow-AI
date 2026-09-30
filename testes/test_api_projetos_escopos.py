@@ -173,18 +173,33 @@ def test_gerar_casos_sem_documento_gravado_retorna_400(client, escopo, usar_prov
     assert "não foi encontrado" in resposta.json()["detail"]
 
 
-def test_gerar_casos_com_documento_gravado_ilegivel_retorna_400(
-    client, escopo, diretorio_escopos_temporario, usar_provedor
+def _docx_vazio():
+    import io
+
+    from docx import Document
+
+    buffer = io.BytesIO()
+    Document().save(buffer)
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize(
+    "conteudo, mensagem",
+    [(b"conteudo invalido", "corrompido"), (_docx_vazio(), "não tem texto")],
+    ids=["ilegivel", "sem-texto"],
+)
+def test_gerar_casos_com_documento_gravado_invalido_retorna_400(
+    client, escopo, diretorio_escopos_temporario, usar_provedor, conteudo, mensagem
 ):
     """Documento gravado antes da validação no envio: a geração recusa com 400, não 500."""
     diretorio_escopos_temporario.mkdir(parents=True)
-    (diretorio_escopos_temporario / f"{escopo.id}.docx").write_bytes(b"conteudo invalido")
+    (diretorio_escopos_temporario / f"{escopo.id}.docx").write_bytes(conteudo)
     usar_provedor(_ProvedorFalso([_caso_gerado()]))
 
     resposta = client.post(f"/api/escopos/{escopo.id}/gerar-casos")
 
     assert resposta.status_code == 400
-    assert "corrompido" in resposta.json()["detail"]
+    assert mensagem in resposta.json()["detail"]
     assert Escopo.objects.get(id=escopo.id).status == StatusEscopo.ERRO
 
 

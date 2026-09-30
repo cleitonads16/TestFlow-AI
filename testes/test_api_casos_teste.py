@@ -51,9 +51,9 @@ def test_criar_caso_em_escopo_inexistente_retorna_404(client):
 
 
 def test_listar_casos_com_filtros(client, projeto, escopo):
-    outro_escopo = Escopo.objects.create(nome_arquivo="outro.pdf", projeto=projeto)
+    outro_escopo = Escopo.objects.create(nome_arquivo="outro.docx", projeto=projeto)
     outro_projeto = Projeto.objects.create(nome="Outro projeto")
-    escopo_de_outro_projeto = Escopo.objects.create(nome_arquivo="x.pdf", projeto=outro_projeto)
+    escopo_de_outro_projeto = Escopo.objects.create(nome_arquivo="x.docx", projeto=outro_projeto)
     _criar_caso(client, escopo.id, codigo="CT-001", categoria="integracao")
     _criar_caso(client, escopo.id, codigo="CT-002")
     _criar_caso(client, outro_escopo.id, codigo="CT-001")

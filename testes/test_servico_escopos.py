@@ -37,23 +37,35 @@ def test_registrar_escopo_ignora_diretorios_do_nome_enviado(
     assert caminho_documento(escopo).parent == diretorio_escopos_temporario
 
 
+def _docx_sem_texto() -> bytes:
+    import io
+
+    from docx import Document
+
+    buffer = io.BytesIO()
+    Document().save(buffer)
+    return buffer.getvalue()
+
+
 @pytest.mark.parametrize(
     "nome, conteudo, mensagem",
     [
         ("escopo.txt", b"texto", "não suportado"),
+        ("escopo.pdf", b"%PDF-1.7", "não suportado"),
         ("escopo", b"texto", "sem extensão"),
-        ("escopo.pdf", b"", "vazio"),
-        ("escopo.pdf", b"x" * (TAMANHO_MAXIMO_BYTES + 1), "limite"),
+        ("escopo.docx", b"", "vazio"),
+        ("escopo.docx", b"x" * (TAMANHO_MAXIMO_BYTES + 1), "limite"),
         ("escopo.docx", b"so renomeado para docx", "corrompido"),
-        ("escopo.pdf", b"so renomeado para pdf", "corrompido"),
+        ("escopo.docx", _docx_sem_texto(), "não tem texto"),
     ],
     ids=[
         "formato-txt",
+        "formato-pdf",
         "sem-extensao",
         "vazio",
         "acima-do-limite",
         "docx-ilegivel",
-        "pdf-ilegivel",
+        "docx-sem-texto",
     ],
 )
 def test_registrar_escopo_recusa_arquivo_invalido(projeto, nome, conteudo, mensagem):

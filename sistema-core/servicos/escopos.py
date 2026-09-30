@@ -4,7 +4,12 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from documentos import FORMATOS_SUPORTADOS, DocumentoIlegivel, validar_documento
+from documentos import (
+    FORMATOS_SUPORTADOS,
+    DocumentoIlegivel,
+    DocumentoSemTexto,
+    validar_documento,
+)
 from modelos.models import Escopo, Projeto
 
 from .erros import RegraDeNegocioViolada
@@ -15,9 +20,9 @@ TAMANHO_MAXIMO_BYTES = 10 * 1024 * 1024
 def registrar_escopo(projeto: Projeto, nome_arquivo: str, conteudo: bytes) -> Escopo:
     """Guarda o documento de escopo enviado e cria o Escopo "pendente" do projeto.
 
-    O formato e a leitura do conteúdo são validados já no envio (e não só na
-    geração), para o usuário saber na hora que o arquivo não serve. O documento é gravado com o id do
-    escopo como nome, e não com o nome enviado, para que um nome de arquivo
+    O formato, a leitura do conteúdo e a presença de texto são validados já no
+    envio (e não só na geração), para o usuário saber na hora que o arquivo
+    não serve. O documento é gravado com o id do escopo como nome, e não com o nome enviado, para que um nome de arquivo
     malicioso (ex.: "../../settings.py") não escolha onde o arquivo é salvo.
     """
     nome_arquivo = Path(nome_arquivo or "").name
@@ -35,7 +40,7 @@ def registrar_escopo(projeto: Projeto, nome_arquivo: str, conteudo: bytes) -> Es
         )
     try:
         validar_documento(conteudo, extensao)
-    except DocumentoIlegivel as erro:
+    except (DocumentoIlegivel, DocumentoSemTexto) as erro:
         raise RegraDeNegocioViolada(str(erro)) from erro
 
     with transaction.atomic():

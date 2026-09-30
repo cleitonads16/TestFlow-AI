@@ -32,7 +32,7 @@ def test_criar_caso_rejeita_codigo_duplicado_no_mesmo_escopo(escopo):
 
 
 def test_mesmo_codigo_e_permitido_em_escopos_diferentes(escopo, projeto):
-    outro_escopo = Escopo.objects.create(nome_arquivo="outro.pdf", projeto=projeto)
+    outro_escopo = Escopo.objects.create(nome_arquivo="outro.docx", projeto=projeto)
     criar_caso_teste(escopo, codigo="CT-001", titulo="Primeiro")
 
     criar_caso_teste(outro_escopo, codigo="CT-001", titulo="Segundo")
