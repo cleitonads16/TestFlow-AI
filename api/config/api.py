@@ -4,9 +4,8 @@ A API não tem regra de negócio (docs/arquitetura-e-cronograma.md, seção 1):
 os routers só validam a entrada, chamam `servicos` e usam os handlers
 abaixo para converter as exceções do core em respostas HTTP.
 
-Todo erro sai no mesmo formato (`schemas.ErroSaida`):
-`{"detail": "<mensagem>", "codigo": "<tipo do erro>", "erros": [...]}`,
-em que `erros` só vem preenchido nos erros de validação (422).
+Todo erro sai no mesmo formato (`schemas.ErroSaida`), descrito para quem
+consome a API em `_DESCRICAO`, que aparece no topo do Swagger (`/api/docs`).
 """
 
 import logging
@@ -23,13 +22,56 @@ from servicos import OperacaoEmConflito, RegraDeNegocioViolada
 
 logger = logging.getLogger(__name__)
 
+_DESCRICAO = """
+API do gestor de casos de teste com geração assistida por IA (projeto de PDI).
+
+**Fluxo de uso**, na ordem das seções abaixo:
+
+1. Crie um **projeto**.
+2. Envie o **escopo** do projeto (.docx ou .pdf) e peça a geração dos casos
+   de teste via IA.
+3. Revise os **casos de teste** gerados ou cadastre casos manuais.
+4. Monte uma **rodada de execução** com os casos a testar.
+5. Registre o resultado de cada **execução** e abra **defeitos** nas que falharem.
+
+**Formato de erro.** Todo erro sai no mesmo corpo:
+`{"detail": "<mensagem>", "codigo": "<tipo do erro>", "erros": [...]}`.
+Use `codigo` para tratar o erro no cliente; `erros` só vem nos erros de validação (422).
+
+| HTTP | `codigo` | Quando |
+|---|---|---|
+| 400 | `regra_de_negocio` | A entrada é válida, mas uma regra do produto recusa a operação |
+| 404 | `nao_encontrado` | O registro informado no caminho não existe |
+| 409 | `conflito` | A operação duplicaria um registro ou apagaria histórico |
+| 422 | `dados_invalidos` | Corpo ou parâmetros fora do formato esperado |
+| 502 | `ia_resposta_invalida` | O provedor de IA respondeu fora do formato esperado |
+| 503 | `ia_indisponivel` | O provedor de IA não respondeu (tente de novo mais tarde) |
+| 500 | `erro_interno` | Falha inesperada, registrada no log do servidor |
+"""
+
+_TAGS = [
+    {"name": "Projetos", "description": "Sistema ou produto que está sendo testado."},
+    {
+        "name": "Escopos",
+        "description": "Documento de escopo do projeto e geração dos casos de teste via IA.",
+    },
+    {
+        "name": "Casos de teste",
+        "description": "Revisão dos casos gerados pela IA e cadastro de casos manuais.",
+    },
+    {
+        "name": "Rodadas de execução",
+        "description": "Ciclo de testes: agrupa os casos que serão executados juntos.",
+    },
+    {"name": "Execuções", "description": "Resultado de cada caso dentro de uma rodada."},
+    {"name": "Defeitos", "description": "Falhas encontradas nas execuções e o seu andamento."},
+]
+
 api = NinjaAPI(
     title="TestFlow AI — Gestor de Casos de Teste",
-    version="0.6.0",
-    description=(
-        "API do gestor de casos de teste com geração assistida por IA "
-        "(projeto de PDI, Fase 2)."
-    ),
+    version="0.7.0",
+    description=_DESCRICAO.strip(),
+    openapi_extra={"tags": _TAGS},
 )
 
 for modulo in (projetos, escopos, casos_teste, rodadas, execucoes, defeitos):
