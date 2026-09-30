@@ -20,8 +20,23 @@ class _BlocoFerramentaFalso:
 
 
 class _RespostaFalsa:
-    def __init__(self, content):
+    def __init__(self, content, stop_reason="tool_use"):
         self.content = content
+        self.stop_reason = stop_reason
+
+
+class _StreamFalso:
+    def __init__(self, resposta):
+        self._resposta = resposta
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *excecao):
+        return False
+
+    def get_final_message(self):
+        return self._resposta
 
 
 class _ClienteFalso:
@@ -35,9 +50,9 @@ class _ClienteFalso:
     def messages(self):
         return self
 
-    def create(self, **kwargs):
+    def stream(self, **kwargs):
         self.chamadas.append(kwargs)
-        return self._resposta
+        return _StreamFalso(self._resposta)
 
 
 def test_llm_provider_e_uma_interface_abstrata():
@@ -86,6 +101,21 @@ def test_provedor_claude_levanta_erro_sem_tool_use():
         provedor.gerar_casos_teste("Texto do escopo de exemplo")
 
 
+@pytest.mark.parametrize(
+    "stop_reason, mensagem",
+    [("max_tokens", "tamanho máximo"), ("refusal", "recusou")],
+    ids=["resposta-cortada", "recusa"],
+)
+def test_provedor_claude_nao_aproveita_resposta_cortada_ou_recusada(stop_reason, mensagem):
+    """Numa resposta cortada, a lista de casos viria incompleta sem nenhum aviso."""
+    caso_parcial = {"casos": [{"codigo": "CT-001"}]}
+    resposta_falsa = _RespostaFalsa([_BlocoFerramentaFalso(caso_parcial)], stop_reason)
+    provedor = ProvedorClaude(cliente=_ClienteFalso(resposta_falsa))
+
+    with pytest.raises(RespostaIAInvalida, match=mensagem):
+        provedor.gerar_casos_teste("Texto do escopo de exemplo")
+
+
 def test_obter_provedor_llm_retorna_provedor_claude_por_padrao(monkeypatch):
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "chave-fake-para-teste")
@@ -105,7 +135,7 @@ class _ClienteComFalha:
     def messages(self):
         return self
 
-    def create(self, **kwargs):
+    def stream(self, **kwargs):
         raise anthropic.AnthropicError("sem credencial")
 
 

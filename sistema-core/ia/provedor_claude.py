@@ -6,6 +6,7 @@ from .erros import ProvedorIAIndisponivel, RespostaIAInvalida
 from .provider import CasoTesteGerado, LLMProvider
 
 MODELO_PADRAO = "claude-opus-5"
+MAX_TOKENS_RESPOSTA = 64000
 
 _PROMPT_SISTEMA = (
     "Você é um analista de qualidade de software especialista em elaborar "
@@ -94,10 +95,13 @@ class ProvedorClaude(LLMProvider):
         return self._ultimo_tokens_utilizados
 
     def gerar_casos_teste(self, texto_escopo: str) -> list[CasoTesteGerado]:
+        # Streaming porque um escopo grande gera uma resposta longa: sem ele, o
+        # SDK limita o max_tokens para não estourar o tempo da requisição HTTP.
+        # Só a mensagem final é usada; os eventos intermediários não interessam.
         try:
-            resposta = self._cliente.messages.create(
+            with self._cliente.messages.stream(
                 model=self._modelo,
-                max_tokens=16000,
+                max_tokens=MAX_TOKENS_RESPOSTA,
                 system=_PROMPT_SISTEMA,
                 tools=[_FERRAMENTA_REGISTRAR_CASOS],
                 tool_choice={"type": "tool", "name": "registrar_casos_de_teste"},
@@ -109,7 +113,8 @@ class ProvedorClaude(LLMProvider):
                         ),
                     }
                 ],
-            )
+            ) as stream:
+                resposta = stream.get_final_message()
         except anthropic.AnthropicError as erro:
             raise ProvedorIAIndisponivel(
                 "Não foi possível obter resposta do provedor de IA (Claude)."
@@ -118,6 +123,18 @@ class ProvedorClaude(LLMProvider):
         uso = getattr(resposta, "usage", None)
         if uso is not None:
             self._ultimo_tokens_utilizados = uso.input_tokens + uso.output_tokens
+
+        # O stop_reason vem antes do conteúdo: numa resposta cortada ou recusada,
+        # a lista de casos viria incompleta ou nem viria.
+        if resposta.stop_reason == "max_tokens":
+            raise RespostaIAInvalida(
+                "A resposta da IA foi interrompida por exceder o tamanho máximo. "
+                "Divida o escopo em documentos menores e gere os casos de cada um."
+            )
+        if resposta.stop_reason == "refusal":
+            raise RespostaIAInvalida(
+                "O provedor de IA recusou gerar casos de teste para este escopo."
+            )
 
         bloco_ferramenta = next(
             (bloco for bloco in resposta.content if bloco.type == "tool_use"), None
