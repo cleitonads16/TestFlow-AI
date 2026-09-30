@@ -2,7 +2,12 @@ import pytest
 from docx import Document
 from pypdf import PdfWriter
 
-from documentos import FormatoDocumentoNaoSuportado, extrair_texto
+from documentos import (
+    DocumentoIlegivel,
+    FormatoDocumentoNaoSuportado,
+    extrair_texto,
+    validar_documento,
+)
 
 
 def test_extrai_texto_de_docx(tmp_path):
@@ -36,3 +41,21 @@ def test_formato_nao_suportado_levanta_erro(tmp_path):
 
     with pytest.raises(FormatoDocumentoNaoSuportado):
         extrair_texto(caminho)
+
+
+@pytest.mark.parametrize("extensao", [".docx", ".pdf"])
+def test_arquivo_ilegivel_levanta_documento_ilegivel(tmp_path, extensao):
+    caminho = tmp_path / f"escopo{extensao}"
+    caminho.write_bytes(b"texto qualquer, so renomeado")
+
+    with pytest.raises(DocumentoIlegivel, match="corrompido"):
+        extrair_texto(caminho)
+
+
+def test_validar_documento_aceita_docx_valido(conteudo_docx):
+    validar_documento(conteudo_docx, ".docx")
+
+
+def test_validar_documento_recusa_conteudo_ilegivel():
+    with pytest.raises(DocumentoIlegivel):
+        validar_documento(b"nao sou um pdf", ".pdf")

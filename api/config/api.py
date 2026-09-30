@@ -15,7 +15,7 @@ from django.http import Http404
 from ninja import NinjaAPI
 from ninja.errors import ValidationError
 
-from documentos import FormatoDocumentoNaoSuportado
+from documentos import DocumentoIlegivel, FormatoDocumentoNaoSuportado
 from ia import ProvedorIAIndisponivel, RespostaIAInvalida
 from rotas import casos_teste, defeitos, escopos, execucoes, projetos, rodadas
 from servicos import OperacaoEmConflito, RegraDeNegocioViolada
@@ -106,6 +106,7 @@ def _dados_invalidos(request, erro):
 
 @api.exception_handler(RegraDeNegocioViolada)
 @api.exception_handler(FormatoDocumentoNaoSuportado)
+@api.exception_handler(DocumentoIlegivel)
 def _regra_violada(request, erro):
     return _erro(request, 400, "regra_de_negocio", str(erro))
 

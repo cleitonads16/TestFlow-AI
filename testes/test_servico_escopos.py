@@ -44,8 +44,17 @@ def test_registrar_escopo_ignora_diretorios_do_nome_enviado(
         ("escopo", b"texto", "sem extensão"),
         ("escopo.pdf", b"", "vazio"),
         ("escopo.pdf", b"x" * (TAMANHO_MAXIMO_BYTES + 1), "limite"),
+        ("escopo.docx", b"so renomeado para docx", "corrompido"),
+        ("escopo.pdf", b"so renomeado para pdf", "corrompido"),
     ],
-    ids=["formato-txt", "sem-extensao", "vazio", "acima-do-limite"],
+    ids=[
+        "formato-txt",
+        "sem-extensao",
+        "vazio",
+        "acima-do-limite",
+        "docx-ilegivel",
+        "pdf-ilegivel",
+    ],
 )
 def test_registrar_escopo_recusa_arquivo_invalido(projeto, nome, conteudo, mensagem):
     with pytest.raises(RegraDeNegocioViolada, match=mensagem):

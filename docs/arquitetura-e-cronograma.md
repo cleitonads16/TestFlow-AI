@@ -2,8 +2,8 @@
 
 > Documento técnico de apoio ao desenvolvimento. Complementa `docs/escopo-projeto.docx` (visão de negócio/PDI) com decisões de arquitetura e o cronograma semana a semana até a apresentação de outubro/2026.
 
-**Versão:** 2.3
-**Data:** 23/09/2026
+**Versão:** 2.4
+**Data:** 30/09/2026
 **Projeto:** todo-avancado (PDI 2026-2027 — Cleiton Ferreira)
 
 > **Nota de revisão (v2.0):** o projeto foi replanejado. Em vez de um sistema de gestão de tarefas genérico, a base passa a ser uma ferramenta de gestão de casos de teste já construída pelo autor (uso interno, processo PM06 no Fluig), generalizada para qualquer processo de negócio e evoluída de um app local sem persistência para um sistema com API, banco de dados, Docker e geração automática de casos de teste via IA a partir de um documento de escopo. O nome do diretório do projeto (`todo-avancado`) é mantido por continuidade do repositório; o produto passa a se chamar **Gestor de Casos de Teste com IA**.
@@ -19,6 +19,7 @@
 | 2.1 | 22/09/2026 | FastAPI → Django Ninja; SQLAlchemy → ORM do Django; PostgreSQL → MySQL; cronograma das Semanas 4 a 8 ajustado |
 | 2.2 | 23/09/2026 | Semana 5 adiantada: API de projetos, escopos e casos de teste; regras de upload e de reprocessamento; tradução de erros para HTTP |
 | 2.3 | 23/09/2026 | Semana 6 adiantada: API de rodadas, execuções e defeitos; formato único de erro com `codigo`; 409 para conflitos |
+| 2.4 | 30/09/2026 | Semana 7 iniciada: revisão do Swagger/OpenAPI (resumos, tags na ordem do fluxo, exemplos de corpo, tabela de erros); documento de escopo ilegível passa a ser recusado com 400 no envio e na geração, em vez de 500 |
 
 ---
 
@@ -123,7 +124,7 @@ Os routers não tratam erros. Os exception handlers registrados em `api/config/a
 | Exceção | HTTP | `codigo` | Quando |
 |---|---|---|---|
 | Validação dos Schemas do Ninja (tipo errado, enum fora do domínio, campo faltando) | 422 | `dados_invalidos` | Antes de chegar ao core |
-| `RegraDeNegocioViolada`, `FormatoDocumentoNaoSuportado` | 400 | `regra_de_negocio` | Uma regra da seção 3 recusou a operação (texto vazio, datas invertidas, status inválido, defeito em execução que não falhou, id de caso inexistente no corpo) |
+| `RegraDeNegocioViolada`, `FormatoDocumentoNaoSuportado`, `DocumentoIlegivel` | 400 | `regra_de_negocio` | Uma regra da seção 3 recusou a operação (texto vazio, datas invertidas, status inválido, defeito em execução que não falhou, id de caso inexistente no corpo, documento de escopo corrompido ou só renomeado para .docx/.pdf) |
 | `OperacaoEmConflito` (subclasse de `RegraDeNegocioViolada`) e `IntegrityError` do banco | 409 | `conflito` | O pedido é válido, mas colide com um registro existente: código repetido no escopo, caso já na rodada, escopo já processado, exclusão de caso com histórico. O `IntegrityError` cobre gravações simultâneas que passem pela validação do serviço e esbarrem na constraint do banco |
 | `Http404` (`rotas.comum.obter_ou_404`) | 404 | `nao_encontrado` | Recurso do caminho da URL inexistente, com mensagem em português e o id buscado (ex.: "Rodada de execução 42 não encontrada.") |
 | `RespostaIAInvalida` | 502 | `ia_resposta_invalida` | O provedor de IA respondeu fora do formato esperado |
@@ -134,7 +135,7 @@ Os routers não tratam erros. Os exception handlers registrados em `api/config/a
 
 ### Endpoints entregues (Semanas 5 e 6)
 
-Swagger em `/api/docs` e OpenAPI em `/api/openapi.json`.
+Swagger em `/api/docs` e OpenAPI em `/api/openapi.json`. As seções do Swagger seguem a ordem do fluxo de uso (projeto → escopo → casos → rodada → execução → defeito). Cada operação tem um resumo próprio em português, e os corpos de entrada vêm com um exemplo preenchido. O topo da página explica o fluxo e a tabela de códigos de erro. O teste `testes/test_api_documentacao.py` garante que essas regras continuem valendo quando um endpoint novo for criado, e também que cada exemplo seja aceito pelo próprio schema.
 
 | Método | Caminho | O que faz |
 |---|---|---|
@@ -282,4 +283,6 @@ Revisão de código com o dev mais experiente realizada em 23/09/2026, fechando 
 
 Semana 6 adiantada e concluída em 23/09/2026: endpoints de rodadas, execuções e defeitos (seção 3), formato único de erro com `codigo` estável, `OperacaoEmConflito` (409) para as regras de duplicidade e de histórico, mensagens 404 em português e erro 500 sem vazar detalhes internos. O teste de integração `testes/test_api_fluxo_completo.py` percorre o produto inteiro só pela API, do envio do escopo à correção do defeito. São 110 testes passando.
 
-Próximo passo (Semana 7): revisão do Swagger (descrições, exemplos e agrupamento), organização do repositório Git e Dockerfile da API. A imagem precisa de Python 3.12 ou mais recente, porque o código usa a sintaxe de genéricos do Python 3.12 (`rotas/comum.py`).
+Semana 7 iniciada em 30/09/2026 com a revisão do Swagger (ver "Endpoints entregues" na seção 3). No mesmo dia foi corrigido o erro 500 com documento de escopo ilegível (corrompido ou só renomeado): o conteúdo agora é lido já no envio (`documentos.validar_documento`), e uma falha de leitura na geração vira `DocumentoIlegivel` (400). São 130 testes passando. Os commits das Semanas 5 e 6 foram enviados para `origin/develop` no mesmo dia.
+
+Próximo passo (Semana 7): organização do repositório Git (branch `main`) e Dockerfile da API. A imagem precisa de Python 3.12 ou mais recente, porque o código usa a sintaxe de genéricos do Python 3.12 (`rotas/comum.py`).

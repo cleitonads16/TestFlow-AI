@@ -1,4 +1,10 @@
-from .erros import FormatoDocumentoNaoSuportado
-from .extrator import FORMATOS_SUPORTADOS, extrair_texto
+from .erros import DocumentoIlegivel, FormatoDocumentoNaoSuportado
+from .extrator import FORMATOS_SUPORTADOS, extrair_texto, validar_documento
 
-__all__ = ["extrair_texto", "FormatoDocumentoNaoSuportado", "FORMATOS_SUPORTADOS"]
+__all__ = [
+    "extrair_texto",
+    "validar_documento",
+    "FormatoDocumentoNaoSuportado",
+    "DocumentoIlegivel",
+    "FORMATOS_SUPORTADOS",
+]

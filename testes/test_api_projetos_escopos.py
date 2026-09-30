@@ -101,6 +101,15 @@ def test_enviar_escopo_em_formato_nao_suportado_retorna_400(client, projeto):
     assert Escopo.objects.count() == 0
 
 
+def test_enviar_escopo_corrompido_retorna_400(client, projeto):
+    resposta = _enviar_escopo(client, projeto.id, b"so renomeado para docx")
+
+    assert resposta.status_code == 400
+    assert resposta.json()["codigo"] == "regra_de_negocio"
+    assert "corrompido" in resposta.json()["detail"]
+    assert Escopo.objects.count() == 0
+
+
 def test_enviar_escopo_sem_arquivo_retorna_422(client, projeto):
     assert client.post(f"/api/projetos/{projeto.id}/escopos").status_code == 422
 
@@ -162,6 +171,21 @@ def test_gerar_casos_sem_documento_gravado_retorna_400(client, escopo, usar_prov
 
     assert resposta.status_code == 400
     assert "não foi encontrado" in resposta.json()["detail"]
+
+
+def test_gerar_casos_com_documento_gravado_ilegivel_retorna_400(
+    client, escopo, diretorio_escopos_temporario, usar_provedor
+):
+    """Documento gravado antes da validação no envio: a geração recusa com 400, não 500."""
+    diretorio_escopos_temporario.mkdir(parents=True)
+    (diretorio_escopos_temporario / f"{escopo.id}.docx").write_bytes(b"conteudo invalido")
+    usar_provedor(_ProvedorFalso([_caso_gerado()]))
+
+    resposta = client.post(f"/api/escopos/{escopo.id}/gerar-casos")
+
+    assert resposta.status_code == 400
+    assert "corrompido" in resposta.json()["detail"]
+    assert Escopo.objects.get(id=escopo.id).status == StatusEscopo.ERRO
 
 
 def test_gerar_casos_de_escopo_inexistente_retorna_404(client):
