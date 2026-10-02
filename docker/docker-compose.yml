@@ -42,12 +42,16 @@ services:
     image: casos-teste-api
     environment:
       <<: *ambiente-api
+      LLM_PROVIDER: ${LLM_PROVIDER:-claude}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
       ANTHROPIC_API_KEY_FILE: /run/secrets/anthropic_api_key
-    # A chave da IA entra como secret (arquivo em /run/secrets/), e não como
-    # variável de ambiente: não aparece em `docker inspect`, não vai para a
-    # imagem e não chega ao container de testes.
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+    # As chaves da IA entram como secrets (arquivos em /run/secrets/), e não
+    # como variáveis de ambiente: não aparecem em `docker inspect`, não vão
+    # para a imagem e não chegam ao container de testes.
     secrets:
       - anthropic_api_key
+      - openai_api_key
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -73,8 +77,10 @@ volumes:
   dados-mysql:
   uploads:
 
+# Caminho de cada arquivo de chave, FORA do repositório (docker/.env). Sem ele,
+# usa um arquivo vazio: a API sobe e só a geração via IA responde 503.
 secrets:
   anthropic_api_key:
-    # Caminho do arquivo com a chave, FORA do repositório (docker/.env).
-    # Sem ele, usa um arquivo vazio: a API sobe e só a geração via IA dá 503.
     file: ${ANTHROPIC_API_KEY_ARQUIVO:-./sem-chave-ia}
+  openai_api_key:
+    file: ${OPENAI_API_KEY_ARQUIVO:-./sem-chave-ia}

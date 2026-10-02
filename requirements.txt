@@ -4,6 +4,8 @@ django>=5.1
 # Fase 1 — extração de documentos de escopo e geração de casos via IA
 python-docx>=1.1
 anthropic>=0.40
+# Segundo provedor de IA (ChatGPT, ferramenta homologada na ComBio), atrás de LLMProvider
+openai>=3.0
 
 # Fase 2 — API
 # Django Ninja no lugar de FastAPI — motivo em docs/arquitetura-e-cronograma.md (D1)

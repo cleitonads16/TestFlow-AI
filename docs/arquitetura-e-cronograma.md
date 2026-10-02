@@ -2,7 +2,7 @@
 
 > Documento técnico de apoio ao desenvolvimento. Complementa `docs/escopo-projeto.docx` (visão de negócio/PDI) com decisões de arquitetura e o cronograma semana a semana até a apresentação de outubro/2026.
 
-**Versão:** 2.9
+**Versão:** 2.10
 **Data:** 02/10/2026
 **Projeto:** todo-avancado (PDI 2026-2027 — Cleiton Ferreira)
 
@@ -25,6 +25,7 @@
 | 2.7 | 02/10/2026 | Semana 8 iniciada: `docker-compose` (API + MySQL 8.4) com migrations na subida e suíte de testes contra o MySQL; corpo de requisição ilegível passa a seguir o formato padrão de erro (`corpo_invalido`) |
 | 2.8 | 02/10/2026 | Mensagens de validação (422) em português; guia de uso da API (`docs/uso-da-api.md`); Semanas 7 e 8 concluídas |
 | 2.9 | 02/10/2026 | Proteção da chave do provedor de IA (D5): leitura por arquivo via Docker secret, porta da API só em `127.0.0.1`, padrões de credencial no `.gitignore` e teste que barra chave dentro do projeto; Gemini fora por não ser ferramenta homologada |
+| 2.10 | 02/10/2026 | Segundo provedor de IA: OpenAI (D6), selecionado por `LLM_PROVIDER`; prompt e schema dos casos compartilhados entre os provedores (`ia/esquema_casos.py`); mensagens próprias para conta sem crédito e limite de requisições |
 
 ---
 
@@ -207,7 +208,7 @@ Upload do escopo (.docx)
 | Testes | pytest + pytest-django | Padrão de mercado; o `pytest-django` cria um banco de testes isolado por execução |
 | Containerização | Docker + docker-compose (API + MySQL) | Conforme escopo Fase 3 |
 
-**Variáveis de ambiente:** `ANTHROPIC_API_KEY_FILE` (caminho do arquivo com a chave do provedor de IA; no Docker, o secret em `/run/secrets/anthropic_api_key`; ver D5), `ANTHROPIC_API_KEY` (alternativa só para desenvolvimento local, nunca versionada), `LLM_PROVIDER` (seleciona o adaptador ativo), `DJANGO_SECRET_KEY` (nunca versionada), `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`, e as variáveis de conexão com o MySQL usadas na Fase 3 (`MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, nunca versionada, `MYSQL_HOST`, `MYSQL_PORT`). Sem `MYSQL_HOST`, o `settings.py` usa SQLite.
+**Variáveis de ambiente:** `LLM_PROVIDER` (`claude`, padrão, ou `openai`; ver D6), `OPENAI_API_KEY_FILE` e `OPENAI_MODEL` (chave e modelo da OpenAI, padrão `gpt-5.5`), `ANTHROPIC_API_KEY_FILE` (caminho do arquivo com a chave do provedor de IA; no Docker, o secret em `/run/secrets/anthropic_api_key`; ver D5), `ANTHROPIC_API_KEY` (alternativa só para desenvolvimento local, nunca versionada) `DJANGO_SECRET_KEY` (nunca versionada), `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`, e as variáveis de conexão com o MySQL usadas na Fase 3 (`MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, nunca versionada, `MYSQL_HOST`, `MYSQL_PORT`). Sem `MYSQL_HOST`, o `settings.py` usa SQLite.
 
 ## 6. Registro de Decisões
 
@@ -276,6 +277,14 @@ Cada decisão registra o contexto, a escolha, as alternativas avaliadas e o que 
 - **Alternativa descartada:** provedor Gemini como reserva da Claude. O Gemini não é ferramenta homologada pela ComBio, e a reserva enviaria documentos de escopo (dados internos) para fora das ferramentas homologadas, o que a política de IA da empresa bloqueia. Um novo provedor depende de exceção aprovada pelo ServiceUP; a interface `LLMProvider` já permite adicioná-lo sem mudar o resto do sistema.
 - **Custo:** quem roda localmente sem Docker precisa definir `ANTHROPIC_API_KEY_FILE` (ou `ANTHROPIC_API_KEY`) no próprio ambiente.
 
+### D6 — Segundo provedor de IA: OpenAI, atrás da mesma interface (02/10/2026)
+
+- **Decisão:** adicionar o adaptador `ProvedorOpenAI` (`sistema-core/ia/provedor_openai.py`), escolhido por `LLM_PROVIDER=openai`. Ele usa *structured output* (`response_format` com `json_schema` estrito), o equivalente da OpenAI à tool call forçada da Anthropic. O prompt, o schema dos casos e a conversão para `CasoTesteGerado` ficam em `ia/esquema_casos.py`, compartilhados pelos dois provedores, para a troca de provedor não mudar o que é pedido nem o formato do resultado. O modelo padrão é o `gpt-5.5`, configurável por `OPENAI_MODEL`.
+- **Por quê:** a chave da Anthropic disponível não é válida (D5), e o ChatGPT é ferramenta homologada na ComBio. A interface `LLMProvider`, prevista desde a Semana 2 para isso, permitiu adicionar o provedor sem mudar serviços, API nem banco: só a fábrica `obter_provedor_llm` ganhou um registro. A auditoria em `GeracaoIA` passa a registrar `openai` e o modelo usado.
+- **Regras de uso:** só chave de **conta corporativa** (política de IA da ComBio). A chave segue a D5: arquivo fora do repositório, secret `openai_api_key` no Docker, `OPENAI_API_KEY_FILE` no ambiente. Os mesmos casos de erro do `ProvedorClaude` (resposta cortada, recusada ou fora do formato; chave recusada) têm tratamento equivalente; o 429 diferencia **conta sem crédito**, que esperar não resolve, de **limite de requisições**, que passa sozinho.
+- **Alternativa descartada:** troca automática de provedor quando um falha. Esconderia o problema (chave inválida, falta de crédito) e misturaria resultados de modelos diferentes no mesmo projeto sem decisão de ninguém; o provedor ativo é uma escolha explícita de configuração.
+- **Custo:** mais um SDK (`openai`) nas dependências e um adaptador para manter.
+
 ## 7. Fora de Escopo (reforçando o escopo-projeto.docx)
 
 Autenticação multiusuário, frontend, deploy em nuvem, filas/mensageria, suporte simultâneo a múltiplos provedores de IA no dia 1 (só a interface fica pronta para isso), armazenamento do conteúdo de evidências (imagens/PDF, só metadados): nada disso entra nesta primeira versão. O Django Admin é usado só como ferramenta de apoio ao desenvolvimento e não é considerado um frontend do produto.
@@ -329,4 +338,6 @@ Ainda em 02/10/2026, fechando a Semana 8: mensagens de validação (422) em port
 
 Ainda em 02/10/2026: proteção da chave do provedor de IA (D5). No primeiro teste real, a Anthropic recusou o arquivo recebido (401, `authentication_error`): o conteúdo não tem o formato de uma chave da API da Anthropic. São 151 testes passando.
 
-Próximo passo (até a apresentação): obter uma chave válida da API da Anthropic e fazer os testes com escopos reais e geração via IA; branch `main` e deploy final com o projeto concluído.
+Ainda em 02/10/2026: segundo provedor, a OpenAI (D6). A chave da OpenAI é válida (autenticou e listou os modelos), mas a conta está sem créditos: a geração real respondeu 429 `insufficient_quota`, que agora tem mensagem própria. As verificações da D5 foram repetidas com a chave da OpenAI: nenhuma ocorrência nos logs, no `docker inspect` nem na imagem. São 163 testes passando.
+
+Próximo passo (até a apresentação): créditos na conta corporativa da OpenAI (ou uma chave válida da Anthropic) e então os testes com escopos reais e geração via IA; branch `main` e deploy final com o projeto concluído.

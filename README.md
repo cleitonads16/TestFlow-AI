@@ -11,7 +11,7 @@ Construído em camadas, cada fase reaproveitando a anterior:
 - **Fase 1 — Sistema core** (`sistema-core/`): entidades e regras de negócio. A API não contém regra de negócio e nenhuma camada depende de um provedor de IA específico.
   - `modelos/` — app Django com `Projeto`, `Escopo`, `CasoDeTeste`, `RodadaDeExecucao`, `ExecucaoDeCaso`, `Defeito`, `GeracaoIA` (ORM do Django + migrations)
   - `documentos/` — extração de texto de escopo (.docx)
-  - `ia/` — interface `LLMProvider` + adaptador `ProvedorClaude` (Anthropic SDK, saída estruturada via tool call)
+  - `ia/` — interface `LLMProvider` + adaptadores `ProvedorClaude` (Anthropic, tool call forçada) e `ProvedorOpenAI` (OpenAI, structured output), escolhidos por `LLM_PROVIDER`
   - `servicos/` — regras de negócio: geração via IA (extrair escopo → gerar casos → persistir), CRUD manual de casos de teste, rodadas, execuções e defeitos
 - **Fase 2 — API** (`api/`): projeto Django (`config/`) + camada HTTP com Django Ninja (routers e Schemas) sobre o core.
 - **Fase 3 — Docker** (`docker/`): containerização (API + MySQL).
@@ -20,7 +20,7 @@ Detalhes de arquitetura, cronograma completo e o **registro de decisões** (moti
 
 ## Stack
 
-Python 3 · Django + Django Ninja · ORM do Django · MySQL (Docker; SQLite só em dev/testes locais) · python-docx · SDK oficial `anthropic` · Pydantic · pytest + pytest-django · Docker
+Python 3 · Django + Django Ninja · ORM do Django · MySQL (Docker; SQLite só em dev/testes locais) · python-docx · SDKs oficiais `anthropic` e `openai` · Pydantic · pytest + pytest-django · Docker
 
 ### Por que esta stack (resumo)
 
@@ -34,7 +34,7 @@ Fase 1 implementada: modelagem do domínio, extração de texto de escopo, gera�
 
 Fase 2 concluída: a API com Django Ninja cobre o fluxo inteiro (projetos, upload de escopo, geração de casos via IA, CRUD de casos de teste, rodadas de execução, resultados e defeitos), com formato único de erro e Swagger revisado.
 
-Fase 3 concluída: Dockerfile da API e `docker-compose` (API + MySQL 8.4), com as migrations aplicadas na subida e a suíte de testes rodando também contra o MySQL; guia de uso da API em [`docs/uso-da-api.md`](docs/uso-da-api.md). São 151 testes. Até a apresentação: testes com escopos reais e geração via IA com a credencial do provedor.
+Fase 3 concluída: Dockerfile da API e `docker-compose` (API + MySQL 8.4), com as migrations aplicadas na subida e a suíte de testes rodando também contra o MySQL; guia de uso da API em [`docs/uso-da-api.md`](docs/uso-da-api.md). São 163 testes. Até a apresentação: testes com escopos reais e geração via IA com a credencial do provedor.
 
 ## Rodando os testes
 
@@ -74,6 +74,6 @@ python manage.py runserver        # admin em http://127.0.0.1:8000/admin/
 
 **Guia completo de uso** (fluxo passo a passo com exemplos, convenções e tratamento de erros): [`docs/uso-da-api.md`](docs/uso-da-api.md).
 
-Com o `runserver` no ar, o Swagger fica em http://127.0.0.1:8000/api/docs. A geração de casos (`POST /api/escopos/{id}/gerar-casos`) precisa da chave da Anthropic num arquivo fora do repositório, indicado em `ANTHROPIC_API_KEY_FILE` (no Docker, `ANTHROPIC_API_KEY_ARQUIVO` no `docker/.env`; detalhes em [`docs/uso-da-api.md`](docs/uso-da-api.md) e na decisão D5); os outros endpoints funcionam sem ela. Os documentos enviados vão para `uploads/escopos/` (fora do Git; configurável por `DIRETORIO_ESCOPOS`).
+Com o `runserver` no ar, o Swagger fica em http://127.0.0.1:8000/api/docs. A geração de casos (`POST /api/escopos/{id}/gerar-casos`) precisa da chave do provedor ativo (`LLM_PROVIDER`: `claude` ou `openai`) num arquivo fora do repositório, indicado em `ANTHROPIC_API_KEY_FILE` ou `OPENAI_API_KEY_FILE` (no Docker, `*_API_KEY_ARQUIVO` no `docker/.env`; detalhes em [`docs/uso-da-api.md`](docs/uso-da-api.md) e na decisão D5); os outros endpoints funcionam sem ela. Os documentos enviados vão para `uploads/escopos/` (fora do Git; configurável por `DIRETORIO_ESCOPOS`).
 
 Fluxo básico: `POST /api/projetos` → `POST /api/projetos/{id}/escopos` (campo `arquivo`, .docx) → `POST /api/escopos/{id}/gerar-casos` → revisar com `PATCH /api/casos-de-teste/{id}` → `POST /api/projetos/{id}/rodadas` → `PUT /api/execucoes/{id}/resultado` → `POST /api/execucoes/{id}/defeitos` → acompanhar em `GET /api/rodadas/{id}/resumo`. A lista completa de endpoints e a tradução de erros para HTTP estão na seção 3 de [`docs/arquitetura-e-cronograma.md`](docs/arquitetura-e-cronograma.md).

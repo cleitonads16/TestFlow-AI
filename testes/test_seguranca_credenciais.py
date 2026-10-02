@@ -1,6 +1,6 @@
 """Nenhuma chave de provedor de IA pode estar dentro do projeto.
 
-A chave fica num arquivo fora do repositório e chega à API como Docker secret
+Cada chave fica num arquivo fora do repositório e chega à API como Docker secret
 (docs/arquitetura-e-cronograma.md, D5). Este teste pega o vazamento antes do
 commit: um arquivo com chave dentro do projeto falha a suíte. A falha cita só
 o arquivo, nunca o trecho encontrado, para o próprio relatório não vazar a chave.
@@ -13,6 +13,7 @@ RAIZ_PROJETO = Path(__file__).resolve().parents[1]
 
 _PADROES_DE_CHAVE = {
     "Anthropic": re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}"),
+    "OpenAI": re.compile(r"sk-(proj|svcacct|admin)-[A-Za-z0-9_\-]{20,}"),
     "Google (Gemini)": re.compile(r"AIza[0-9A-Za-z_\-]{35}"),
 }
 

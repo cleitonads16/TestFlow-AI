@@ -1,10 +1,12 @@
 import os
 
 from .provedor_claude import ProvedorClaude
+from .provedor_openai import ProvedorOpenAI
 from .provider import LLMProvider
 
 _PROVEDORES = {
     "claude": ProvedorClaude,
+    "openai": ProvedorOpenAI,
 }
 
 
@@ -13,7 +15,7 @@ def obter_provedor_llm(nome: str | None = None) -> LLMProvider:
 
     Lê o nome do provedor de `nome` ou, se omitido, da variável de ambiente
     `LLM_PROVIDER` (padrão: "claude"). Adicionar um novo provedor no futuro
-    (ex.: OpenAI) exige apenas implementar `LLMProvider` e registrá-lo em
+    (ex.: um terceiro provedor) exige apenas implementar `LLMProvider` e registrá-lo em
     `_PROVEDORES` — nenhum outro ponto do sistema precisa mudar.
     """
     nome_provedor = (nome or os.getenv("LLM_PROVIDER", "claude")).lower()
