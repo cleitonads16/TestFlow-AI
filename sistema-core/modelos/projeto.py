@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models.functions import Lower
 
 
 class Projeto(models.Model):
@@ -7,6 +8,7 @@ class Projeto(models.Model):
 
     class Meta:
         db_table = "projetos"
+        constraints = [models.UniqueConstraint(Lower("nome"), name="projeto_nome_unico")]
 
     def __str__(self) -> str:
         return self.nome

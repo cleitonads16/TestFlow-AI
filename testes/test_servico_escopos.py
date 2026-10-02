@@ -1,8 +1,11 @@
 import pytest
 
 from modelos import StatusEscopo
-from modelos.models import Escopo
+from django.db import IntegrityError
+
+from modelos.models import Escopo, Projeto
 from servicos import (
+    OperacaoEmConflito,
     RegraDeNegocioViolada,
     caminho_documento,
     criar_projeto,
@@ -17,6 +20,21 @@ pytestmark = pytest.mark.django_db
 def test_criar_projeto_exige_nome():
     with pytest.raises(RegraDeNegocioViolada, match="nome"):
         criar_projeto("   ")
+
+
+def test_criar_projeto_recusa_nome_repetido_sem_diferenciar_maiusculas():
+    criar_projeto("Portal RH")
+
+    with pytest.raises(OperacaoEmConflito, match="Portal RH"):
+        criar_projeto("  portal rh ")
+
+
+def test_banco_recusa_nome_de_projeto_repetido_mesmo_fora_do_servico():
+    """A constraint protege contra gravações simultâneas ou que não passem pelo serviço."""
+    Projeto.objects.create(nome="Portal RH")
+
+    with pytest.raises(IntegrityError):
+        Projeto.objects.create(nome="PORTAL RH")
 
 
 def test_registrar_escopo_grava_documento_e_cria_escopo_pendente(projeto, conteudo_docx):

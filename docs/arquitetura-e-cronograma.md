@@ -2,8 +2,8 @@
 
 > Documento técnico de apoio ao desenvolvimento. Complementa `docs/escopo-projeto.docx` (visão de negócio/PDI) com decisões de arquitetura e o cronograma semana a semana até a apresentação de outubro/2026.
 
-**Versão:** 2.5
-**Data:** 30/09/2026
+**Versão:** 2.6
+**Data:** 02/10/2026
 **Projeto:** todo-avancado (PDI 2026-2027 — Cleiton Ferreira)
 
 > **Nota de revisão (v2.0):** o projeto foi replanejado. Em vez de um sistema de gestão de tarefas genérico, a base passa a ser uma ferramenta de gestão de casos de teste já construída pelo autor (uso interno, processo PM06 no Fluig), generalizada para qualquer processo de negócio e evoluída de um app local sem persistência para um sistema com API, banco de dados, Docker e geração automática de casos de teste via IA a partir de um documento de escopo. O nome do diretório do projeto (`todo-avancado`) é mantido por continuidade do repositório; o produto passa a se chamar **Gestor de Casos de Teste com IA**.
@@ -21,6 +21,7 @@
 | 2.3 | 23/09/2026 | Semana 6 adiantada: API de rodadas, execuções e defeitos; formato único de erro com `codigo`; 409 para conflitos |
 | 2.4 | 30/09/2026 | Semana 7 iniciada: revisão do Swagger/OpenAPI (resumos, tags na ordem do fluxo, exemplos de corpo, tabela de erros); documento de escopo ilegível passa a ser recusado com 400 no envio e na geração, em vez de 500 |
 | 2.5 | 30/09/2026 | Escopo só em `.docx` (D4); extração passa a ler tabelas; documento sem texto recusado; resposta da IA cortada ou recusada tratada; chamada à IA via streaming |
+| 2.6 | 02/10/2026 | Nome de projeto único (sem diferenciar maiúsculas); falta de credencial da IA vira 503; Dockerfile da API (`docker/Dockerfile`), validado também contra MySQL 8.4 |
 
 ---
 
@@ -94,6 +95,7 @@ Os serviços ficam em `sistema-core/servicos/` (`casos_teste.py`, `execucoes.py`
 
 | Regra | Por quê |
 |---|---|
+| *(v2.6)* Nome do projeto é único, sem diferenciar maiúsculas de minúsculas e ignorando espaços nas pontas (validado no serviço e garantido no banco pela constraint `projeto_nome_unico`, sobre `LOWER(nome)`) | Dois projetos "Portal RH" deixam ambíguo onde enviar escopos e de quem são os resultados. A mensagem de conflito traz o nome do projeto que já existe |
 | Código do caso de teste é obrigatório e único dentro do escopo | Os casos são referenciados pelo código nas rodadas e na comunicação da equipe; dois `CT-001` no mesmo escopo gerariam ambiguidade. Escopos diferentes podem repetir códigos |
 | Campos de texto obrigatórios (código, título, nome da rodada, descrição do defeito) não aceitam vazio ou só espaços | Evita registros sem significado que atrapalham a leitura dos resultados |
 | A edição de um caso não altera a `origem` | Um caso gerado por IA e revisado pelo usuário continua registrado como `ia`, preservando a rastreabilidade da geração (auditoria em `GeracaoIA`). Só os campos de conteúdo são editáveis |
@@ -127,7 +129,7 @@ Os routers não tratam erros. Os exception handlers registrados em `api/config/a
 |---|---|---|---|
 | Validação dos Schemas do Ninja (tipo errado, enum fora do domínio, campo faltando) | 422 | `dados_invalidos` | Antes de chegar ao core |
 | `RegraDeNegocioViolada`, `FormatoDocumentoNaoSuportado`, `DocumentoIlegivel`, `DocumentoSemTexto` | 400 | `regra_de_negocio` | Uma regra da seção 3 recusou a operação (texto vazio, datas invertidas, status inválido, defeito em execução que não falhou, id de caso inexistente no corpo, documento de escopo corrompido, só renomeado para .docx ou sem texto) |
-| `OperacaoEmConflito` (subclasse de `RegraDeNegocioViolada`) e `IntegrityError` do banco | 409 | `conflito` | O pedido é válido, mas colide com um registro existente: código repetido no escopo, caso já na rodada, escopo já processado, exclusão de caso com histórico. O `IntegrityError` cobre gravações simultâneas que passem pela validação do serviço e esbarrem na constraint do banco |
+| `OperacaoEmConflito` (subclasse de `RegraDeNegocioViolada`) e `IntegrityError` do banco | 409 | `conflito` | O pedido é válido, mas colide com um registro existente: nome de projeto repetido, código repetido no escopo, caso já na rodada, escopo já processado, exclusão de caso com histórico. O `IntegrityError` cobre gravações simultâneas que passem pela validação do serviço e esbarrem na constraint do banco |
 | `Http404` (`rotas.comum.obter_ou_404`) | 404 | `nao_encontrado` | Recurso do caminho da URL inexistente, com mensagem em português e o id buscado (ex.: "Rodada de execução 42 não encontrada.") |
 | `RespostaIAInvalida` | 502 | `ia_resposta_invalida` | O provedor de IA respondeu fora do formato esperado, cortou a resposta por tamanho (`stop_reason` `max_tokens`) ou recusou o pedido (`refusal`); cada caso tem mensagem própria, e nenhum caso parcial é gravado |
 | `ProvedorIAIndisponivel` | 503 | `ia_indisponivel` | Falha ao chamar o provedor (rede, credencial, limite de uso). Cada adaptador traduz os erros do seu SDK para essa exceção, então a API não conhece o SDK da Anthropic |
@@ -301,4 +303,6 @@ Semana 7 iniciada em 30/09/2026 com a revisão do Swagger (ver "Endpoints entreg
 
 Ainda em 30/09/2026, preparando os testes com escopos reais: escopo só em .docx (D4), leitura das tabelas do documento, recusa de documento sem texto e tratamento de resposta da IA cortada ou recusada (seção 4). São 136 testes passando.
 
-Próximo passo (Semana 7): primeiros testes com escopos reais, organização do repositório Git (branch `main`) e Dockerfile da API. A imagem precisa de Python 3.12 ou mais recente, porque o código usa a sintaxe de genéricos do Python 3.12 (`rotas/comum.py`).
+Em 02/10/2026: teste manual de todas as rotas da API com `curl` (sem falhas); falta de credencial do provedor de IA passa a responder 503 em vez de 500; nome de projeto único (seção 3); Dockerfile da API em `docker/Dockerfile` (multi-stage, Python 3.13, usuário não-root com código só leitura, `gunicorn` com timeout de 300 s por causa da geração via IA). A imagem foi validada rodando sozinha (SQLite) e contra um MySQL 8.4 temporário, com as migrations aplicadas. São 140 testes passando. A branch `main` só será criada no deploy final, com o projeto concluído.
+
+Próximo passo (Semana 8): `docker-compose` (API + MySQL 8.4) com migrations aplicadas na subida, testes end-to-end containerizados e documentação de uso da API.

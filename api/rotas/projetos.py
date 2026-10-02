@@ -11,7 +11,7 @@ router = Router(tags=["Projetos"])
 
 @router.post(
     "/projetos",
-    response={201: ProjetoSaida, **respostas_de_erro(400, 422)},
+    response={201: ProjetoSaida, **respostas_de_erro(400, 409, 422)},
     summary="Criar projeto",
 )
 def criar(request, payload: ProjetoEntrada):

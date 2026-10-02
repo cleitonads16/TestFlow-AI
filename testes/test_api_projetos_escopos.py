@@ -77,6 +77,16 @@ def test_criar_projeto_com_nome_vazio_retorna_400(client):
     assert "nome" in resposta.json()["detail"]
 
 
+def test_criar_projeto_com_nome_repetido_retorna_409(client):
+    client.post("/api/projetos", {"nome": "Portal RH"}, content_type="application/json")
+
+    resposta = client.post("/api/projetos", {"nome": "portal rh"}, content_type="application/json")
+
+    assert resposta.status_code == 409
+    assert resposta.json()["codigo"] == "conflito"
+    assert len(client.get("/api/projetos").json()) == 1
+
+
 def test_projeto_inexistente_retorna_404(client):
     assert client.get("/api/projetos/999").status_code == 404
 
