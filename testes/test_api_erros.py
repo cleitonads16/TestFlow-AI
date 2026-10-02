@@ -31,6 +31,19 @@ def test_erro_de_validacao_em_parametro_de_consulta(client):
     ]
 
 
+@pytest.mark.parametrize(
+    "corpo",
+    [b'{"nome": "Portal', '{"nome": "Homologação"}'.encode("latin-1")],
+    ids=["json-malformado", "texto-fora-de-utf8"],
+)
+def test_corpo_ilegivel_segue_o_formato_padrao_de_erro(client, corpo):
+    resposta = client.post("/api/projetos", corpo, content_type="application/json")
+
+    assert resposta.status_code == 400
+    assert resposta.json()["codigo"] == "corpo_invalido"
+    assert "UTF-8" in resposta.json()["detail"]
+
+
 def test_regra_de_negocio_violada(client):
     resposta = client.post("/api/projetos", {"nome": " "}, content_type="application/json")
 

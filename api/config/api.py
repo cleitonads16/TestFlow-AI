@@ -13,7 +13,7 @@ import logging
 from django.db import IntegrityError
 from django.http import Http404
 from ninja import NinjaAPI
-from ninja.errors import ValidationError
+from ninja.errors import HttpError, ValidationError
 
 from documentos import DocumentoIlegivel, DocumentoSemTexto, FormatoDocumentoNaoSuportado
 from ia import ProvedorIAIndisponivel, RespostaIAInvalida
@@ -40,6 +40,7 @@ Use `codigo` para tratar o erro no cliente; `erros` só vem nos erros de valida�
 
 | HTTP | `codigo` | Quando |
 |---|---|---|
+| 400 | `corpo_invalido` | O corpo não é um JSON legível (sintaxe errada ou texto fora de UTF-8) |
 | 400 | `regra_de_negocio` | A entrada é válida, mas uma regra do produto recusa a operação |
 | 404 | `nao_encontrado` | O registro informado no caminho não existe |
 | 409 | `conflito` | A operação duplicaria um registro ou apagaria histórico |
@@ -102,6 +103,21 @@ def _dados_invalidos(request, erro):
             "mensagem": item["msg"],
         })
     return _erro(request, 422, "dados_invalidos", "Dados de entrada inválidos.", erros)
+
+
+@api.exception_handler(HttpError)
+def _erro_http_do_ninja(request, erro):
+    # O único HttpError que a API recebe é o do Ninja ao não conseguir ler o
+    # corpo; o texto original vem em inglês e, com DEBUG, expõe o erro do parser.
+    if erro.status_code == 400:
+        return _erro(
+            request,
+            400,
+            "corpo_invalido",
+            "O corpo da requisição não é um JSON válido. Confira a sintaxe e se o "
+            "texto está codificado em UTF-8.",
+        )
+    return _erro(request, erro.status_code, "erro_http", str(erro.message))
 
 
 @api.exception_handler(RegraDeNegocioViolada)
