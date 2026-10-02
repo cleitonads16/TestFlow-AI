@@ -2,7 +2,7 @@
 
 > Documento técnico de apoio ao desenvolvimento. Complementa `docs/escopo-projeto.docx` (visão de negócio/PDI) com decisões de arquitetura e o cronograma semana a semana até a apresentação de outubro/2026.
 
-**Versão:** 2.10
+**Versão:** 2.11
 **Data:** 02/10/2026
 **Projeto:** todo-avancado (PDI 2026-2027 — Cleiton Ferreira)
 
@@ -26,6 +26,7 @@
 | 2.8 | 02/10/2026 | Mensagens de validação (422) em português; guia de uso da API (`docs/uso-da-api.md`); Semanas 7 e 8 concluídas |
 | 2.9 | 02/10/2026 | Proteção da chave do provedor de IA (D5): leitura por arquivo via Docker secret, porta da API só em `127.0.0.1`, padrões de credencial no `.gitignore` e teste que barra chave dentro do projeto; Gemini fora por não ser ferramenta homologada |
 | 2.10 | 02/10/2026 | Segundo provedor de IA: OpenAI (D6), selecionado por `LLM_PROVIDER`; prompt e schema dos casos compartilhados entre os provedores (`ia/esquema_casos.py`); mensagens próprias para conta sem crédito e limite de requisições |
+| 2.11 | 02/10/2026 | Provedor gratuito: Ollama com modelo local (D7), que recusa modelos de nuvem e servidor fora da máquina; timeout do gunicorn de 300 s para 900 s |
 
 ---
 
@@ -208,7 +209,7 @@ Upload do escopo (.docx)
 | Testes | pytest + pytest-django | Padrão de mercado; o `pytest-django` cria um banco de testes isolado por execução |
 | Containerização | Docker + docker-compose (API + MySQL) | Conforme escopo Fase 3 |
 
-**Variáveis de ambiente:** `LLM_PROVIDER` (`claude`, padrão, ou `openai`; ver D6), `OPENAI_API_KEY_FILE` e `OPENAI_MODEL` (chave e modelo da OpenAI, padrão `gpt-5.5`), `ANTHROPIC_API_KEY_FILE` (caminho do arquivo com a chave do provedor de IA; no Docker, o secret em `/run/secrets/anthropic_api_key`; ver D5), `ANTHROPIC_API_KEY` (alternativa só para desenvolvimento local, nunca versionada) `DJANGO_SECRET_KEY` (nunca versionada), `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`, e as variáveis de conexão com o MySQL usadas na Fase 3 (`MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, nunca versionada, `MYSQL_HOST`, `MYSQL_PORT`). Sem `MYSQL_HOST`, o `settings.py` usa SQLite.
+**Variáveis de ambiente:** `LLM_PROVIDER` (`claude`, padrão, `openai` ou `ollama`; ver D6 e D7), `OLLAMA_URL` e `OLLAMA_MODEL` (servidor local e modelo do Ollama, padrão `gemma3:4b`), `OPENAI_API_KEY_FILE` e `OPENAI_MODEL` (chave e modelo da OpenAI, padrão `gpt-5.5`), `ANTHROPIC_API_KEY_FILE` (caminho do arquivo com a chave do provedor de IA; no Docker, o secret em `/run/secrets/anthropic_api_key`; ver D5), `ANTHROPIC_API_KEY` (alternativa só para desenvolvimento local, nunca versionada) `DJANGO_SECRET_KEY` (nunca versionada), `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`, e as variáveis de conexão com o MySQL usadas na Fase 3 (`MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, nunca versionada, `MYSQL_HOST`, `MYSQL_PORT`). Sem `MYSQL_HOST`, o `settings.py` usa SQLite.
 
 ## 6. Registro de Decisões
 
@@ -285,6 +286,15 @@ Cada decisão registra o contexto, a escolha, as alternativas avaliadas e o que 
 - **Alternativa descartada:** troca automática de provedor quando um falha. Esconderia o problema (chave inválida, falta de crédito) e misturaria resultados de modelos diferentes no mesmo projeto sem decisão de ninguém; o provedor ativo é uma escolha explícita de configuração.
 - **Custo:** mais um SDK (`openai`) nas dependências e um adaptador para manter.
 
+### D7 — Provedor gratuito: Ollama com modelo local (02/10/2026)
+
+- **Decisão:** adicionar o adaptador `ProvedorOllama` (`sistema-core/ia/provedor_ollama.py`), escolhido por `LLM_PROVIDER=ollama`, como opção gratuita enquanto não há crédito nos provedores pagos. O modelo roda na própria máquina (padrão `gemma3:4b`, configurável por `OLLAMA_MODEL`). O adaptador usa a API nativa do Ollama (`/api/chat`) com o mesmo JSON Schema dos outros provedores no campo `format`, que restringe a geração ao formato de `CasoTesteGerado`, e não precisa de biblioteca nova (só `urllib`).
+- **Por quê:** é a única opção sem custo que mantém o documento de escopo dentro do computador. A política de IA da ComBio bloqueia enviar dado interno a ferramenta não homologada; com o modelo local, nada é enviado. O Ollama em si não está na lista de ferramentas homologadas, então o uso fica restrito a protótipo e PDI. Uso oficial depende de exceção pelo ServiceUP.
+- **Travas:** o adaptador recusa, **antes de enviar qualquer coisa**, modelos de nuvem do Ollama (nome com `cloud`, ex.: `gpt-oss:120b-cloud`, que rodam fora da máquina) e servidores que não sejam a própria máquina (`localhost`, `127.0.0.1`, `::1` ou `host.docker.internal`, que é o Windows visto de dentro do Docker).
+- **Medido nesta máquina (16 GB, sem GPU):** um escopo pequeno gerou 9 a 10 casos válidos em cerca de 3 min 20 s. A qualidade é inferior à dos provedores pagos (códigos fora do padrão `CT-NNN`, quase tudo `funcional`), o que reforça a revisão dos casos antes de usar. Por isso o timeout do gunicorn subiu de 300 s para 900 s, e o adaptador desiste em 840 s com mensagem própria. O contexto do modelo foi ampliado para 16 mil tokens (`num_ctx`), porque o padrão do Ollama cortaria escopos maiores sem aviso.
+- **Alternativa descartada:** o Gemini no plano gratuito. É gratuito, mas não é homologado, e o escopo seria enviado para fora da empresa (ver D5).
+- **Custo:** a geração é lenta e ocupa a CPU da máquina enquanto roda; escopos grandes devem ser divididos. O Ollama precisa estar aberto no Windows.
+
 ## 7. Fora de Escopo (reforçando o escopo-projeto.docx)
 
 Autenticação multiusuário, frontend, deploy em nuvem, filas/mensageria, suporte simultâneo a múltiplos provedores de IA no dia 1 (só a interface fica pronta para isso), armazenamento do conteúdo de evidências (imagens/PDF, só metadados): nada disso entra nesta primeira versão. O Django Admin é usado só como ferramenta de apoio ao desenvolvimento e não é considerado um frontend do produto.
@@ -340,4 +350,6 @@ Ainda em 02/10/2026: proteção da chave do provedor de IA (D5). No primeiro tes
 
 Ainda em 02/10/2026: segundo provedor, a OpenAI (D6). A chave da OpenAI é válida (autenticou e listou os modelos), mas a conta está sem créditos: a geração real respondeu 429 `insufficient_quota`, que agora tem mensagem própria. As verificações da D5 foram repetidas com a chave da OpenAI: nenhuma ocorrência nos logs, no `docker inspect` nem na imagem. São 163 testes passando.
 
-Próximo passo (até a apresentação): créditos na conta corporativa da OpenAI (ou uma chave válida da Anthropic) e então os testes com escopos reais e geração via IA; branch `main` e deploy final com o projeto concluído.
+Ainda em 02/10/2026: provedor gratuito com Ollama local (D7). Primeira geração real de ponta a ponta: pela API no Docker, o `gemma3:4b` gerou 9 casos do escopo de exemplo em 3 min 22 s, gravados com origem `ia` e auditados em `GeracaoIA`. São 178 testes passando, no SQLite e no MySQL.
+
+Próximo passo (até a apresentação): testes com escopos reais pelo Ollama; quando houver crédito na conta corporativa da OpenAI (ou uma chave válida da Anthropic), comparar a qualidade dos casos; branch `main` e deploy final com o projeto concluído.

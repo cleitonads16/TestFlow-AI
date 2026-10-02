@@ -44,6 +44,10 @@ services:
       <<: *ambiente-api
       LLM_PROVIDER: ${LLM_PROVIDER:-claude}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
+      # Ollama roda no Windows, fora do Docker; de dentro do container o host
+      # é host.docker.internal.
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
       ANTHROPIC_API_KEY_FILE: /run/secrets/anthropic_api_key
       OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
     # As chaves da IA entram como secrets (arquivos em /run/secrets/), e não

@@ -25,7 +25,10 @@ python manage.py runserver
 
 Nos dois casos a API responde em `http://127.0.0.1:8000/api/` e o Swagger em **http://127.0.0.1:8000/api/docs**, onde todas as rotas podem ser testadas pelo navegador.
 
-**Geração de casos via IA:** escolha o provedor em `LLM_PROVIDER` (`claude`, padrão, ou `openai`) e guarde a chave dele num arquivo **fora do repositório**, sempre de conta corporativa. No Docker, informe o caminho do arquivo no `docker/.env` (`ANTHROPIC_API_KEY_ARQUIVO` ou `OPENAI_API_KEY_ARQUIVO`); a chave entra no container como secret. Sem Docker, defina `ANTHROPIC_API_KEY_FILE` ou `OPENAI_API_KEY_FILE` com o caminho do arquivo antes do `runserver`. Nunca coloque a chave em arquivos do projeto: um teste da suíte falha se encontrar uma. Sem chave, só a rota de geração responde 503; todo o resto da API funciona.
+**Geração de casos via IA:** escolha o provedor em `LLM_PROVIDER`:
+
+- `ollama` — **gratuito**: modelo local na sua máquina (padrão `gemma3:4b`; baixe com `ollama pull gemma3:4b` e deixe o Ollama aberto). O escopo não sai do computador. É lento sem GPU (minutos por escopo) e só aceita modelos locais; modelos `-cloud` são recusados.
+- `claude` (padrão) ou `openai` — pagos: guarde a chave dele num arquivo **fora do repositório**, sempre de conta corporativa. No Docker, informe o caminho do arquivo no `docker/.env` (`ANTHROPIC_API_KEY_ARQUIVO` ou `OPENAI_API_KEY_ARQUIVO`); a chave entra no container como secret. Sem Docker, defina `ANTHROPIC_API_KEY_FILE` ou `OPENAI_API_KEY_FILE` com o caminho do arquivo antes do `runserver`. Nunca coloque a chave em arquivos do projeto: um teste da suíte falha se encontrar uma. Sem chave, só a rota de geração responde 503; todo o resto da API funciona.
 
 ## 2. Convenções
 
@@ -83,7 +86,7 @@ curl -X POST $B/escopos/1/gerar-casos
 
 `201` → `{"escopo": {..., "status": "processado"}, "quantidade_casos_gerados": 12, "casos": [...]}`
 
-- A chamada é síncrona e leva o tempo de a IA responder: de alguns segundos a poucos minutos, conforme o tamanho do escopo. Configure o cliente HTTP com timeout de pelo menos 5 minutos.
+- A chamada é síncrona e leva o tempo de a IA responder: de alguns segundos a poucos minutos nos provedores pagos, e vários minutos no Ollama local sem GPU. Configure o cliente HTTP com timeout de pelo menos 15 minutos (o servidor corta em 900 s).
 - Os casos nascem com `origem: "ia"`. O texto lido do documento fica em `GET /escopos/1` (`texto_extraido`).
 - Um escopo já `processado` não é gerado de novo (`409`), para não duplicar os casos nem perder as revisões.
 - Se a IA falhar (`502` ou `503`), o escopo fica com status `erro` e a geração pode ser pedida outra vez. Nenhum caso parcial é gravado.

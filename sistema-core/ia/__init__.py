@@ -1,6 +1,7 @@
 from .erros import ProvedorIAIndisponivel, RespostaIAInvalida
 from .fabrica import obter_provedor_llm
 from .provedor_claude import ProvedorClaude
+from .provedor_ollama import ProvedorOllama
 from .provedor_openai import ProvedorOpenAI
 from .provider import CasoTesteGerado, LLMProvider
 
@@ -9,6 +10,7 @@ __all__ = [
     "CasoTesteGerado",
     "ProvedorClaude",
     "ProvedorOpenAI",
+    "ProvedorOllama",
     "obter_provedor_llm",
     "RespostaIAInvalida",
     "ProvedorIAIndisponivel",

@@ -43,7 +43,8 @@ USER app
 EXPOSE 8000
 ENTRYPOINT ["entrypoint.sh"]
 
-# Timeout alto porque a geração de casos espera a resposta completa da IA,
-# que leva minutos num escopo grande; com o padrão (30 s) o worker seria morto.
+# Timeout alto porque a geração de casos espera a resposta completa da IA:
+# minutos num provedor pago com escopo grande, e mais ainda num modelo local
+# sem GPU (Ollama). Com o padrão (30 s) o worker seria morto no meio.
 CMD ["gunicorn", "--chdir", "api", "config.wsgi:application", \
-     "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "300"]
+     "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "900"]

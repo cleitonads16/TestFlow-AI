@@ -10,7 +10,8 @@ from .provider import CasoTesteGerado, LLMProvider
 
 MODELO_PADRAO = "gpt-5.5"
 VARIAVEL_ARQUIVO_CHAVE = "OPENAI_API_KEY_FILE"
-# A geração espera a resposta completa; o gunicorn da imagem corta em 300 s.
+# A geração espera a resposta completa; o limite fica abaixo do corte do
+# gunicorn da imagem (900 s), para o erro sair com mensagem e não como 502.
 TIMEOUT_SEGUNDOS = 290
 
 # Códigos que a OpenAI usa no 429 quando o problema é saldo, não excesso de

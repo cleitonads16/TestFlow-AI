@@ -1,12 +1,14 @@
 import os
 
 from .provedor_claude import ProvedorClaude
+from .provedor_ollama import ProvedorOllama
 from .provedor_openai import ProvedorOpenAI
 from .provider import LLMProvider
 
 _PROVEDORES = {
     "claude": ProvedorClaude,
     "openai": ProvedorOpenAI,
+    "ollama": ProvedorOllama,
 }
 
 
