@@ -2,7 +2,7 @@
 
 > Documento técnico de apoio ao desenvolvimento. Complementa `docs/escopo-projeto.docx` (visão de negócio/PDI) com decisões de arquitetura e o cronograma semana a semana até a apresentação de outubro/2026.
 
-**Versão:** 2.8
+**Versão:** 2.9
 **Data:** 02/10/2026
 **Projeto:** todo-avancado (PDI 2026-2027 — Cleiton Ferreira)
 
@@ -24,6 +24,7 @@
 | 2.6 | 02/10/2026 | Nome de projeto único (sem diferenciar maiúsculas); falta de credencial da IA vira 503; Dockerfile da API (`docker/Dockerfile`), validado também contra MySQL 8.4 |
 | 2.7 | 02/10/2026 | Semana 8 iniciada: `docker-compose` (API + MySQL 8.4) com migrations na subida e suíte de testes contra o MySQL; corpo de requisição ilegível passa a seguir o formato padrão de erro (`corpo_invalido`) |
 | 2.8 | 02/10/2026 | Mensagens de validação (422) em português; guia de uso da API (`docs/uso-da-api.md`); Semanas 7 e 8 concluídas |
+| 2.9 | 02/10/2026 | Proteção da chave do provedor de IA (D5): leitura por arquivo via Docker secret, porta da API só em `127.0.0.1`, padrões de credencial no `.gitignore` e teste que barra chave dentro do projeto; Gemini fora por não ser ferramenta homologada |
 
 ---
 
@@ -206,7 +207,7 @@ Upload do escopo (.docx)
 | Testes | pytest + pytest-django | Padrão de mercado; o `pytest-django` cria um banco de testes isolado por execução |
 | Containerização | Docker + docker-compose (API + MySQL) | Conforme escopo Fase 3 |
 
-**Variáveis de ambiente:** `ANTHROPIC_API_KEY` (credencial do provedor de IA, nunca versionada, via `.env` ou segredo do Docker), `LLM_PROVIDER` (seleciona o adaptador ativo), `DJANGO_SECRET_KEY` (nunca versionada), `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`, e as variáveis de conexão com o MySQL usadas na Fase 3 (`MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, nunca versionada, `MYSQL_HOST`, `MYSQL_PORT`). Sem `MYSQL_HOST`, o `settings.py` usa SQLite.
+**Variáveis de ambiente:** `ANTHROPIC_API_KEY_FILE` (caminho do arquivo com a chave do provedor de IA; no Docker, o secret em `/run/secrets/anthropic_api_key`; ver D5), `ANTHROPIC_API_KEY` (alternativa só para desenvolvimento local, nunca versionada), `LLM_PROVIDER` (seleciona o adaptador ativo), `DJANGO_SECRET_KEY` (nunca versionada), `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`, e as variáveis de conexão com o MySQL usadas na Fase 3 (`MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, nunca versionada, `MYSQL_HOST`, `MYSQL_PORT`). Sem `MYSQL_HOST`, o `settings.py` usa SQLite.
 
 ## 6. Registro de Decisões
 
@@ -261,6 +262,20 @@ Cada decisão registra o contexto, a escolha, as alternativas avaliadas e o que 
 - **Alternativa descartada:** manter o PDF. Exigiria tratar PDF digitalizado (OCR) e tabelas quebradas para ter a mesma qualidade de extração, sem necessidade no uso previsto.
 - **Custo:** quem tiver o escopo só em PDF precisa convertê-lo para .docx antes de enviar.
 
+### D5 — Chave do provedor de IA: arquivo via Docker secret, nunca variável nem repositório (02/10/2026)
+
+- **Decisão:** a chave da Anthropic fica num arquivo **fora do repositório** e chega à API como **Docker secret**, montado em `/run/secrets/anthropic_api_key`. O `ProvedorClaude` lê o caminho em `ANTHROPIC_API_KEY_FILE`. O `docker/.env` guarda só o caminho do arquivo (`ANTHROPIC_API_KEY_ARQUIVO`), nunca a chave.
+- **Por quê, camada por camada:**
+  - *GitHub:* o arquivo está fora do projeto; o `.gitignore` recusa nomes típicos de credencial (`*apikey*`, `*api-key*`, `*.key`, `secrets/`…); e `testes/test_seguranca_credenciais.py` falha a suíte se encontrar uma chave da Anthropic ou do Google em qualquer arquivo do projeto, citando só o nome do arquivo. O histórico do Git foi verificado: nenhuma chave.
+  - *Imagem Docker:* a chave não é copiada no build (`docker/Dockerfile.dockerignore`); a imagem foi varrida e não tem chave.
+  - *Ambiente do container:* como variável, a chave apareceria em `docker inspect`, nos processos filhos e nos relatórios de erro. Como secret, o ambiente só tem o caminho.
+  - *Container de testes:* não recebe o secret; os testes nunca chamam a IA real.
+  - *Respostas e logs:* as mensagens de erro da API são fixas, sem texto do SDK; o log registra o tipo do erro (ex.: `authentication_error`), nunca a chave. Chave recusada (401) tem mensagem própria.
+  - *Rede:* a porta da API é publicada só em `127.0.0.1`, sem acesso por outras máquinas.
+  - *Frontend:* o projeto não tem frontend (seção 7); a chave só existe no backend, e nenhuma rota a devolve.
+- **Alternativa descartada:** provedor Gemini como reserva da Claude. O Gemini não é ferramenta homologada pela ComBio, e a reserva enviaria documentos de escopo (dados internos) para fora das ferramentas homologadas, o que a política de IA da empresa bloqueia. Um novo provedor depende de exceção aprovada pelo ServiceUP; a interface `LLMProvider` já permite adicioná-lo sem mudar o resto do sistema.
+- **Custo:** quem roda localmente sem Docker precisa definir `ANTHROPIC_API_KEY_FILE` (ou `ANTHROPIC_API_KEY`) no próprio ambiente.
+
 ## 7. Fora de Escopo (reforçando o escopo-projeto.docx)
 
 Autenticação multiusuário, frontend, deploy em nuvem, filas/mensageria, suporte simultâneo a múltiplos provedores de IA no dia 1 (só a interface fica pronta para isso), armazenamento do conteúdo de evidências (imagens/PDF, só metadados): nada disso entra nesta primeira versão. O Django Admin é usado só como ferramenta de apoio ao desenvolvimento e não é considerado um frontend do produto.
@@ -312,4 +327,6 @@ Semana 8 iniciada em 02/10/2026: `docker/docker-compose.yml` com a API e o MySQL
 
 Ainda em 02/10/2026, fechando a Semana 8: mensagens de validação (422) em português e o guia de uso da API em `docs/uso-da-api.md` (subida do ambiente, convenções, fluxo completo com exemplos, referência das rotas, erros e dicas para o terminal do Windows). Os exemplos do guia foram executados contra a API antes de entrar no documento. São 146 testes passando.
 
-Próximo passo (até a apresentação): testes com escopos reais e geração via IA com a credencial do provedor, que aguarda liberação da empresa; branch `main` e deploy final com o projeto concluído.
+Ainda em 02/10/2026: proteção da chave do provedor de IA (D5). No primeiro teste real, a Anthropic recusou o arquivo recebido (401, `authentication_error`): o conteúdo não tem o formato de uma chave da API da Anthropic. São 151 testes passando.
+
+Próximo passo (até a apresentação): obter uma chave válida da API da Anthropic e fazer os testes com escopos reais e geração via IA; branch `main` e deploy final com o projeto concluído.

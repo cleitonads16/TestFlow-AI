@@ -25,7 +25,7 @@ python manage.py runserver
 
 Nos dois casos a API responde em `http://127.0.0.1:8000/api/` e o Swagger em **http://127.0.0.1:8000/api/docs**, onde todas as rotas podem ser testadas pelo navegador.
 
-**Geração de casos via IA:** precisa da variável `ANTHROPIC_API_KEY` (no `docker/.env` ou no ambiente do `runserver`). Sem ela, só a rota de geração responde 503; todo o resto da API funciona.
+**Geração de casos via IA:** precisa da chave da API da Anthropic, guardada num arquivo **fora do repositório**. No Docker, informe o caminho do arquivo em `ANTHROPIC_API_KEY_ARQUIVO`, no `docker/.env`; a chave entra no container como secret. Sem Docker, defina `ANTHROPIC_API_KEY_FILE` com o caminho do arquivo antes do `runserver`. Nunca coloque a chave em arquivos do projeto: um teste da suíte falha se encontrar uma. Sem chave, só a rota de geração responde 503; todo o resto da API funciona.
 
 ## 2. Convenções
 
@@ -235,7 +235,7 @@ Nos erros de validação (`422`), `erros` traz um item por campo recusado. `camp
 | 409 | `conflito` | A operação duplicaria um registro ou apagaria histórico | Mostrar o `detail`; não adianta repetir |
 | 422 | `dados_invalidos` | Campo faltando, tipo errado ou valor fora da lista | Corrigir os campos listados em `erros` |
 | 502 | `ia_resposta_invalida` | A IA respondeu fora do formato, cortou a resposta ou recusou o pedido | Tentar de novo; persistindo, revisar o escopo |
-| 503 | `ia_indisponivel` | A IA não respondeu ou falta a `ANTHROPIC_API_KEY` | Tentar mais tarde ou configurar a credencial |
+| 503 | `ia_indisponivel` | A IA não respondeu, falta a chave ou a chave foi recusada | Tentar mais tarde ou conferir o arquivo da chave |
 | 500 | `erro_interno` | Falha inesperada (detalhe só no log do servidor) | Avisar o responsável pela API |
 
 **Id inexistente no corpo** (ex.: um `casos_ids` com id que não existe) é `400`, não `404`: o `404` fica reservado ao registro da URL.

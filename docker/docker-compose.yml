@@ -13,7 +13,6 @@ x-ambiente-api: &ambiente-api
   MYSQL_DATABASE: casos_teste
   MYSQL_USER: casos_teste
   MYSQL_PASSWORD: ${MYSQL_PASSWORD:?defina MYSQL_PASSWORD em docker/.env}
-  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
 services:
   mysql:
@@ -41,9 +40,16 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     image: casos-teste-api
-    environment: *ambiente-api
+    environment:
+      <<: *ambiente-api
+      ANTHROPIC_API_KEY_FILE: /run/secrets/anthropic_api_key
+    # A chave da IA entra como secret (arquivo em /run/secrets/), e não como
+    # variável de ambiente: não aparece em `docker inspect`, não vai para a
+    # imagem e não chega ao container de testes.
+    secrets:
+      - anthropic_api_key
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - uploads:/app/uploads
     depends_on:
@@ -66,3 +72,9 @@ services:
 volumes:
   dados-mysql:
   uploads:
+
+secrets:
+  anthropic_api_key:
+    # Caminho do arquivo com a chave, FORA do repositório (docker/.env).
+    # Sem ele, usa um arquivo vazio: a API sobe e só a geração via IA dá 503.
+    file: ${ANTHROPIC_API_KEY_ARQUIVO:-./sem-chave-ia}

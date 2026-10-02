@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 import anthropic
 
 from modelos import CategoriaCasoDeTeste, Prioridade
@@ -7,6 +10,11 @@ from .provider import CasoTesteGerado, LLMProvider
 
 MODELO_PADRAO = "claude-opus-5"
 MAX_TOKENS_RESPOSTA = 64000
+
+# Caminho de um arquivo com a chave (ex.: Docker secret em /run/secrets/).
+# Preferido à variável ANTHROPIC_API_KEY porque a chave não fica no ambiente
+# do processo, que aparece em `docker inspect` e em relatórios de erro.
+VARIAVEL_ARQUIVO_CHAVE = "ANTHROPIC_API_KEY_FILE"
 
 _PROMPT_SISTEMA = (
     "Você é um analista de qualidade de software especialista em elaborar "
@@ -79,7 +87,8 @@ class ProvedorClaude(LLMProvider):
         modelo: str = MODELO_PADRAO,
     ):
         if cliente is None:
-            cliente = anthropic.Anthropic()
+            chave = _ler_chave_de_arquivo()
+            cliente = anthropic.Anthropic(api_key=chave) if chave else anthropic.Anthropic()
             # Sem credencial o SDK só falha na chamada, e com TypeError (não com
             # AnthropicError), que viraria 500. Guardado aqui para virar 503.
             self._sem_credencial = all(
@@ -107,8 +116,9 @@ class ProvedorClaude(LLMProvider):
     def gerar_casos_teste(self, texto_escopo: str) -> list[CasoTesteGerado]:
         if self._sem_credencial:
             raise ProvedorIAIndisponivel(
-                "O provedor de IA (Claude) não tem credencial configurada: "
-                "defina a variável de ambiente ANTHROPIC_API_KEY e reinicie a API."
+                "O provedor de IA (Claude) não tem credencial configurada: informe o "
+                f"arquivo da chave em {VARIAVEL_ARQUIVO_CHAVE} (ou a variável "
+                "ANTHROPIC_API_KEY) e reinicie a API."
             )
 
         # Streaming porque um escopo grande gera uma resposta longa: sem ele, o
@@ -131,6 +141,11 @@ class ProvedorClaude(LLMProvider):
                 ],
             ) as stream:
                 resposta = stream.get_final_message()
+        except anthropic.AuthenticationError as erro:
+            raise ProvedorIAIndisponivel(
+                "O provedor de IA (Claude) recusou a credencial configurada. "
+                "Confira se a chave está completa e ativa."
+            ) from erro
         except anthropic.AnthropicError as erro:
             raise ProvedorIAIndisponivel(
                 "Não foi possível obter resposta do provedor de IA (Claude)."
@@ -172,3 +187,18 @@ class ProvedorClaude(LLMProvider):
             )
             for caso in bloco_ferramenta.input["casos"]
         ]
+
+
+def _ler_chave_de_arquivo() -> str | None:
+    """Lê a chave do arquivo indicado em ANTHROPIC_API_KEY_FILE, se houver.
+
+    Arquivo ausente ou vazio conta como "sem credencial" (503 na geração),
+    sem derrubar a API. A mensagem cita só o caminho, nunca o conteúdo.
+    """
+    caminho = os.getenv(VARIAVEL_ARQUIVO_CHAVE)
+    if not caminho:
+        return None
+    try:
+        return Path(caminho).read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None

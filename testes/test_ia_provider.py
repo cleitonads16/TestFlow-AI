@@ -153,8 +153,55 @@ def test_provedor_claude_sem_credencial_levanta_provedor_indisponivel(monkeypatc
     from types import SimpleNamespace
 
     sem_credencial = SimpleNamespace(api_key=None, auth_token=None, credentials=None)
+    monkeypatch.delenv("ANTHROPIC_API_KEY_FILE", raising=False)
     monkeypatch.setattr("ia.provedor_claude.anthropic.Anthropic", lambda: sem_credencial)
     provedor = ProvedorClaude()
 
     with pytest.raises(ProvedorIAIndisponivel, match="ANTHROPIC_API_KEY"):
+        provedor.gerar_casos_teste("Texto do escopo de exemplo")
+
+
+def test_provedor_claude_le_a_chave_do_arquivo_indicado(monkeypatch, tmp_path):
+    """A chave vem de um arquivo (Docker secret), não de variável de ambiente."""
+    arquivo = tmp_path / "chave"
+    arquivo.write_text("  chave-ficticia-do-arquivo\n", encoding="utf-8")
+    monkeypatch.setenv("ANTHROPIC_API_KEY_FILE", str(arquivo))
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    provedor = ProvedorClaude()
+
+    assert provedor._cliente.api_key == "chave-ficticia-do-arquivo"
+
+
+@pytest.mark.parametrize("conteudo", [None, "   \n"], ids=["arquivo-ausente", "arquivo-vazio"])
+def test_arquivo_de_chave_ausente_ou_vazio_vira_provedor_indisponivel(
+    monkeypatch, tmp_path, conteudo
+):
+    arquivo = tmp_path / "chave"
+    if conteudo is not None:
+        arquivo.write_text(conteudo, encoding="utf-8")
+    monkeypatch.setenv("ANTHROPIC_API_KEY_FILE", str(arquivo))
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+
+    with pytest.raises(ProvedorIAIndisponivel, match="ANTHROPIC_API_KEY_FILE"):
+        ProvedorClaude().gerar_casos_teste("Texto do escopo de exemplo")
+
+
+class _ClienteComChaveRecusada:
+    @property
+    def messages(self):
+        return self
+
+    def stream(self, **kwargs):
+        # Sem passar pelo __init__, que exige um objeto de resposta HTTP do SDK.
+        erro = anthropic.AuthenticationError.__new__(anthropic.AuthenticationError)
+        Exception.__init__(erro, "invalid x-api-key")
+        raise erro
+
+
+def test_chave_recusada_tem_mensagem_propria():
+    provedor = ProvedorClaude(cliente=_ClienteComChaveRecusada())
+
+    with pytest.raises(ProvedorIAIndisponivel, match="recusou a credencial"):
         provedor.gerar_casos_teste("Texto do escopo de exemplo")
