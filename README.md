@@ -34,7 +34,7 @@ Fase 1 implementada: modelagem do domínio, extração de texto de escopo, gera�
 
 Fase 2 concluída: a API com Django Ninja cobre o fluxo inteiro (projetos, upload de escopo, geração de casos via IA, CRUD de casos de teste, rodadas de execução, resultados e defeitos), com formato único de erro e Swagger revisado.
 
-Fase 3 em andamento: Dockerfile da API e `docker-compose` (API + MySQL 8.4) entregues, com as migrations aplicadas na subida e a suíte de testes rodando também contra o MySQL. São 142 testes.
+Fase 3 concluída: Dockerfile da API e `docker-compose` (API + MySQL 8.4), com as migrations aplicadas na subida e a suíte de testes rodando também contra o MySQL; guia de uso da API em [`docs/uso-da-api.md`](docs/uso-da-api.md). São 146 testes. Até a apresentação: testes com escopos reais e geração via IA com a credencial do provedor.
 
 ## Rodando os testes
 
@@ -71,6 +71,8 @@ python manage.py runserver        # admin em http://127.0.0.1:8000/admin/
 ```
 
 ## API (Django Ninja)
+
+**Guia completo de uso** (fluxo passo a passo com exemplos, convenções e tratamento de erros): [`docs/uso-da-api.md`](docs/uso-da-api.md).
 
 Com o `runserver` no ar, o Swagger fica em http://127.0.0.1:8000/api/docs. A geração de casos (`POST /api/escopos/{id}/gerar-casos`) precisa da variável `ANTHROPIC_API_KEY`; os outros endpoints funcionam sem ela. Os documentos enviados vão para `uploads/escopos/` (fora do Git; configurável por `DIRETORIO_ESCOPOS`).
 

@@ -2,7 +2,7 @@
 
 > Documento técnico de apoio ao desenvolvimento. Complementa `docs/escopo-projeto.docx` (visão de negócio/PDI) com decisões de arquitetura e o cronograma semana a semana até a apresentação de outubro/2026.
 
-**Versão:** 2.7
+**Versão:** 2.8
 **Data:** 02/10/2026
 **Projeto:** todo-avancado (PDI 2026-2027 — Cleiton Ferreira)
 
@@ -23,6 +23,7 @@
 | 2.5 | 30/09/2026 | Escopo só em `.docx` (D4); extração passa a ler tabelas; documento sem texto recusado; resposta da IA cortada ou recusada tratada; chamada à IA via streaming |
 | 2.6 | 02/10/2026 | Nome de projeto único (sem diferenciar maiúsculas); falta de credencial da IA vira 503; Dockerfile da API (`docker/Dockerfile`), validado também contra MySQL 8.4 |
 | 2.7 | 02/10/2026 | Semana 8 iniciada: `docker-compose` (API + MySQL 8.4) com migrations na subida e suíte de testes contra o MySQL; corpo de requisição ilegível passa a seguir o formato padrão de erro (`corpo_invalido`) |
+| 2.8 | 02/10/2026 | Mensagens de validação (422) em português; guia de uso da API (`docs/uso-da-api.md`); Semanas 7 e 8 concluídas |
 
 ---
 
@@ -121,14 +122,14 @@ Os routers não tratam erros. Os exception handlers registrados em `api/config/a
 ```json
 {"detail": "Mensagem legível", "codigo": "conflito"}
 {"detail": "Dados de entrada inválidos.", "codigo": "dados_invalidos",
- "erros": [{"campo": "categoria", "origem": "body", "mensagem": "Input should be ..."}]}
+ "erros": [{"campo": "categoria", "origem": "body", "mensagem": "Valor inválido. Permitidos: funcional, integracao, regra_de_negocio, outro."}]}
 ```
 
 `detail` é para a pessoa ler; `codigo` é estável e serve para quem consome a API decidir o que fazer sem depender do texto da mensagem; `erros` só aparece no 422, com um item por campo inválido.
 
 | Exceção | HTTP | `codigo` | Quando |
 |---|---|---|---|
-| Validação dos Schemas do Ninja (tipo errado, enum fora do domínio, campo faltando) | 422 | `dados_invalidos` | Antes de chegar ao core |
+| Validação dos Schemas do Ninja (tipo errado, enum fora do domínio, campo faltando) | 422 | `dados_invalidos` | Antes de chegar ao core. As mensagens do Pydantic, só em inglês, são traduzidas pelo `type` do erro (estável entre versões) em `api/config/traducao_validacao.py`; um tipo sem tradução mantém a mensagem original |
 | `HttpError` do Ninja (corpo que não é JSON legível: sintaxe errada ou texto fora de UTF-8) | 400 | `corpo_invalido` | Antes da validação dos Schemas. Sem esse handler, o Ninja respondia `{"detail": "Cannot parse request body"}`, em inglês, sem `codigo` e, com `DEBUG`, com o erro interno do parser |
 | `RegraDeNegocioViolada`, `FormatoDocumentoNaoSuportado`, `DocumentoIlegivel`, `DocumentoSemTexto` | 400 | `regra_de_negocio` | Uma regra da seção 3 recusou a operação (texto vazio, datas invertidas, status inválido, defeito em execução que não falhou, id de caso inexistente no corpo, documento de escopo corrompido, só renomeado para .docx ou sem texto) |
 | `OperacaoEmConflito` (subclasse de `RegraDeNegocioViolada`) e `IntegrityError` do banco | 409 | `conflito` | O pedido é válido, mas colide com um registro existente: nome de projeto repetido, código repetido no escopo, caso já na rodada, escopo já processado, exclusão de caso com histórico. O `IntegrityError` cobre gravações simultâneas que passem pela validação do serviço e esbarrem na constraint do banco |
@@ -278,8 +279,8 @@ Base: apresentação final em outubro/2026 (API funcionando + geração de casos
 | 4 | 23–29/set | Fase 1 | ✅ Migração para Django: projeto Django, models + migrations, `processar_escopo` e testes existentes no ORM do Django (pytest-django). Regras de negócio de execução (rodadas, execução de casos, defeitos) e CRUD manual de casos de teste. Fechamento da Fase 1 (revisão de código com dev mais experiente, 20%) |
 | 5 | 30/set–06/out | Fase 2 | ✅ Setup do Django Ninja (`NinjaAPI`, routers), Schemas; endpoints de escopos (upload + gerar-casos) e casos de teste |
 | 6 | 07–13/out | Fase 2 | ✅ Endpoints de rodadas/execuções/defeitos, tratamento de erros padronizado (exception handlers do Ninja), testes de integração |
-| 7 | 14–20/out | Fase 2 | Revisão do Swagger/OpenAPI (`/api/docs`), repositório Git versionado, Dockerfile da API |
-| 8 | 21–27/out | Fase 3 | `docker-compose` (API + MySQL 8.4), migrations aplicadas no container, testes end-to-end containerizados, documentação de uso da API |
+| 7 | 14–20/out | Fase 2 | ✅ Revisão do Swagger/OpenAPI (`/api/docs`), repositório Git versionado (branch `main` só no deploy final, por decisão do autor), Dockerfile da API |
+| 8 | 21–27/out | Fase 3 | ✅ `docker-compose` (API + MySQL 8.4), migrations aplicadas no container, testes end-to-end containerizados, documentação de uso da API |
 | 9 | 28–31/out | — | Buffer + **apresentação final (outubro/2026)** |
 
 **Riscos:**
@@ -309,4 +310,6 @@ Em 02/10/2026: teste manual de todas as rotas da API com `curl` (sem falhas); fa
 
 Semana 8 iniciada em 02/10/2026: `docker/docker-compose.yml` com a API e o MySQL 8.4. A API só sobe quando o MySQL aceita conexões do usuário da aplicação (healthcheck), as migrations são aplicadas a cada subida (`docker/entrypoint.sh`), e os dados do MySQL e os uploads ficam em volumes. O serviço `testes` (perfil `testes`) roda a suíte inteira contra o MySQL; para isso, `docker/mysql-init/` dá ao usuário da aplicação permissão no banco `test_casos_teste`, que o pytest-django cria a cada execução. Um fluxo ponta a ponta pelo HTTP (projeto → escopo → casos → rodada → execuções → defeito), com derrubada e nova subida dos containers no meio, confirmou que os dados persistem. Nesse teste apareceu o corpo ilegível fora do formato padrão de erro, corrigido com o código `corpo_invalido`. São 142 testes passando, no SQLite e no MySQL.
 
-Próximo passo (Semana 8): documentação de uso da API.
+Ainda em 02/10/2026, fechando a Semana 8: mensagens de validação (422) em português e o guia de uso da API em `docs/uso-da-api.md` (subida do ambiente, convenções, fluxo completo com exemplos, referência das rotas, erros e dicas para o terminal do Windows). Os exemplos do guia foram executados contra a API antes de entrar no documento. São 146 testes passando.
+
+Próximo passo (até a apresentação): testes com escopos reais e geração via IA com a credencial do provedor, que aguarda liberação da empresa; branch `main` e deploy final com o projeto concluído.

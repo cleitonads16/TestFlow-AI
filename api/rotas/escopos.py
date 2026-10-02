@@ -53,8 +53,8 @@ def detalhar(request, escopo_id: int):
 def gerar_casos(request, escopo_id: int):
     """Extrai o texto do escopo e gera os casos de teste via IA (chamada síncrona).
 
-    A resposta pode levar alguns segundos, o tempo de o provedor de IA
-    responder. Os casos nascem com origem "ia" e o escopo passa a
+    A resposta leva o tempo de o provedor de IA responder: de alguns segundos
+    a poucos minutos, conforme o tamanho do escopo. Os casos nascem com origem "ia" e o escopo passa a
     "processado"; um escopo já processado é recusado (409) para não duplicar
     os casos. Se a IA falhar (502/503), o escopo fica como "erro" e pode ser
     gerado de novo.
