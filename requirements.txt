@@ -12,6 +12,8 @@ pydantic>=2.8
 
 # Fase 3 — MySQL via Docker, padrão ComBio (ainda não usado nesta fase, já previsto — motivo em D3)
 mysqlclient>=2.2
+# Servidor WSGI da imagem Docker (o runserver do Django é só para desenvolvimento)
+gunicorn>=23.0
 
 # Testes
 pytest>=8.0
