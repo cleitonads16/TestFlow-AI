@@ -1,74 +1,21 @@
-import os
-from pathlib import Path
-
 import anthropic
 
-from modelos import CategoriaCasoDeTeste, Prioridade
-
+from .credenciais import ler_chave_de_arquivo
 from .erros import ProvedorIAIndisponivel, RespostaIAInvalida
+from .esquema_casos import ESQUEMA_CASOS, PROMPT_SISTEMA, converter_casos, instrucao_usuario
 from .provider import CasoTesteGerado, LLMProvider
 
 MODELO_PADRAO = "claude-opus-5"
 MAX_TOKENS_RESPOSTA = 64000
 
-# Caminho de um arquivo com a chave (ex.: Docker secret em /run/secrets/).
-# Preferido à variável ANTHROPIC_API_KEY porque a chave não fica no ambiente
-# do processo, que aparece em `docker inspect` e em relatórios de erro.
 VARIAVEL_ARQUIVO_CHAVE = "ANTHROPIC_API_KEY_FILE"
-
-_PROMPT_SISTEMA = (
-    "Você é um analista de qualidade de software especialista em elaborar "
-    "casos de teste a partir de documentos de escopo de projetos de TI. "
-    "Gere casos de teste objetivos e cobrindo os cenários funcionais, de "
-    "integração e de regras de negócio descritos no escopo fornecido."
-)
 
 _FERRAMENTA_REGISTRAR_CASOS = {
     "name": "registrar_casos_de_teste",
     "description": (
         "Registra a lista de casos de teste gerados a partir do escopo fornecido."
     ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "casos": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "codigo": {
-                            "type": "string",
-                            "description": "Identificador curto do caso, ex.: CT-001",
-                        },
-                        "titulo": {"type": "string"},
-                        "categoria": {
-                            "type": "string",
-                            "enum": [categoria.value for categoria in CategoriaCasoDeTeste],
-                        },
-                        "pre_condicao": {"type": "string"},
-                        "passos": {"type": "string"},
-                        "resultado_esperado": {"type": "string"},
-                        "prioridade": {
-                            "type": "string",
-                            "enum": [prioridade.value for prioridade in Prioridade],
-                        },
-                    },
-                    "required": [
-                        "codigo",
-                        "titulo",
-                        "categoria",
-                        "pre_condicao",
-                        "passos",
-                        "resultado_esperado",
-                        "prioridade",
-                    ],
-                    "additionalProperties": False,
-                },
-            },
-        },
-        "required": ["casos"],
-        "additionalProperties": False,
-    },
+    "input_schema": ESQUEMA_CASOS,
     "strict": True,
 }
 
@@ -87,7 +34,7 @@ class ProvedorClaude(LLMProvider):
         modelo: str = MODELO_PADRAO,
     ):
         if cliente is None:
-            chave = _ler_chave_de_arquivo()
+            chave = ler_chave_de_arquivo(VARIAVEL_ARQUIVO_CHAVE)
             cliente = anthropic.Anthropic(api_key=chave) if chave else anthropic.Anthropic()
             # Sem credencial o SDK só falha na chamada, e com TypeError (não com
             # AnthropicError), que viraria 500. Guardado aqui para virar 503.
@@ -128,7 +75,7 @@ class ProvedorClaude(LLMProvider):
             with self._cliente.messages.stream(
                 model=self._modelo,
                 max_tokens=MAX_TOKENS_RESPOSTA,
-                system=_PROMPT_SISTEMA,
+                system=PROMPT_SISTEMA,
                 tools=[_FERRAMENTA_REGISTRAR_CASOS],
                 tool_choice={"type": "tool", "name": "registrar_casos_de_teste"},
                 messages=[
@@ -175,30 +122,4 @@ class ProvedorClaude(LLMProvider):
                 "O provedor de IA não retornou os casos de teste no formato esperado."
             )
 
-        return [
-            CasoTesteGerado(
-                codigo=caso["codigo"],
-                titulo=caso["titulo"],
-                categoria=CategoriaCasoDeTeste(caso["categoria"]),
-                pre_condicao=caso.get("pre_condicao"),
-                passos=caso.get("passos"),
-                resultado_esperado=caso.get("resultado_esperado"),
-                prioridade=Prioridade(caso["prioridade"]),
-            )
-            for caso in bloco_ferramenta.input["casos"]
-        ]
-
-
-def _ler_chave_de_arquivo() -> str | None:
-    """Lê a chave do arquivo indicado em ANTHROPIC_API_KEY_FILE, se houver.
-
-    Arquivo ausente ou vazio conta como "sem credencial" (503 na geração),
-    sem derrubar a API. A mensagem cita só o caminho, nunca o conteúdo.
-    """
-    caminho = os.getenv(VARIAVEL_ARQUIVO_CHAVE)
-    if not caminho:
-        return None
-    try:
-        return Path(caminho).read_text(encoding="utf-8").strip() or None
-    except OSError:
-        return None
+        return converter_casos(bloco_ferramenta.input)
