@@ -78,7 +78,17 @@ class ProvedorClaude(LLMProvider):
         cliente: anthropic.Anthropic | None = None,
         modelo: str = MODELO_PADRAO,
     ):
-        self._cliente = cliente or anthropic.Anthropic()
+        if cliente is None:
+            cliente = anthropic.Anthropic()
+            # Sem credencial o SDK só falha na chamada, e com TypeError (não com
+            # AnthropicError), que viraria 500. Guardado aqui para virar 503.
+            self._sem_credencial = all(
+                getattr(cliente, atributo) is None
+                for atributo in ("api_key", "auth_token", "credentials")
+            )
+        else:
+            self._sem_credencial = False
+        self._cliente = cliente
         self._modelo = modelo
         self._ultimo_tokens_utilizados: int | None = None
 
@@ -95,6 +105,12 @@ class ProvedorClaude(LLMProvider):
         return self._ultimo_tokens_utilizados
 
     def gerar_casos_teste(self, texto_escopo: str) -> list[CasoTesteGerado]:
+        if self._sem_credencial:
+            raise ProvedorIAIndisponivel(
+                "O provedor de IA (Claude) não tem credencial configurada: "
+                "defina a variável de ambiente ANTHROPIC_API_KEY e reinicie a API."
+            )
+
         # Streaming porque um escopo grande gera uma resposta longa: sem ele, o
         # SDK limita o max_tokens para não estourar o tempo da requisição HTTP.
         # Só a mensagem final é usada; os eventos intermediários não interessam.

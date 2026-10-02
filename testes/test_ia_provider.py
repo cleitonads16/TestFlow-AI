@@ -146,3 +146,15 @@ def test_provedor_claude_traduz_erro_do_sdk_para_provedor_indisponivel():
         provedor.gerar_casos_teste("Texto do escopo de exemplo")
 
     assert isinstance(erro.value.__cause__, anthropic.AnthropicError)
+
+
+def test_provedor_claude_sem_credencial_levanta_provedor_indisponivel(monkeypatch):
+    """Sem credencial o SDK levanta TypeError na chamada, o que viraria 500 na API."""
+    from types import SimpleNamespace
+
+    sem_credencial = SimpleNamespace(api_key=None, auth_token=None, credentials=None)
+    monkeypatch.setattr("ia.provedor_claude.anthropic.Anthropic", lambda: sem_credencial)
+    provedor = ProvedorClaude()
+
+    with pytest.raises(ProvedorIAIndisponivel, match="ANTHROPIC_API_KEY"):
+        provedor.gerar_casos_teste("Texto do escopo de exemplo")
