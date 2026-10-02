@@ -20,6 +20,8 @@ from ia import ProvedorIAIndisponivel, RespostaIAInvalida
 from rotas import casos_teste, defeitos, escopos, execucoes, projetos, rodadas
 from servicos import OperacaoEmConflito, RegraDeNegocioViolada
 
+from .traducao_validacao import traduzir
+
 logger = logging.getLogger(__name__)
 
 _DESCRICAO = """
@@ -100,7 +102,7 @@ def _dados_invalidos(request, erro):
         erros.append({
             "campo": ".".join(str(parte) for parte in caminho) or str(origem),
             "origem": str(origem),
-            "mensagem": item["msg"],
+            "mensagem": traduzir(item),
         })
     return _erro(request, 422, "dados_invalidos", "Dados de entrada inválidos.", erros)
 
