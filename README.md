@@ -32,7 +32,9 @@ Python 3 · Django + Django Ninja · ORM do Django · MySQL (Docker; SQLite só 
 
 Fase 1 implementada: modelagem do domínio, extração de texto de escopo, geração de casos de teste via IA com auditoria em `GeracaoIA`, CRUD manual de casos de teste e regras de execução (rodadas, execuções, defeitos), tudo sobre o ORM do Django. Revisão de código com o dev mais experiente concluída em 23/09/2026.
 
-Fase 2 em andamento: Semanas 5 e 6 entregues. A API com Django Ninja cobre o fluxo inteiro: projetos, upload de escopo, geração de casos via IA, CRUD de casos de teste, rodadas de execução, resultados e defeitos, com formato único de erro. São 110 testes. Próximo passo (Semana 7): revisão do Swagger e Dockerfile da API.
+Fase 2 concluída: a API com Django Ninja cobre o fluxo inteiro (projetos, upload de escopo, geração de casos via IA, CRUD de casos de teste, rodadas de execução, resultados e defeitos), com formato único de erro e Swagger revisado.
+
+Fase 3 em andamento: Dockerfile da API e `docker-compose` (API + MySQL 8.4) entregues, com as migrations aplicadas na subida e a suíte de testes rodando também contra o MySQL. São 142 testes.
 
 ## Rodando os testes
 
@@ -41,6 +43,22 @@ python -m venv .venv
 .venv/Scripts/activate  # Windows
 pip install -r requirements.txt
 pytest testes/ -q
+```
+
+## Rodando com Docker (API + MySQL)
+
+Na raiz do projeto, copie `docker/.env.exemplo` para `docker/.env` e preencha as senhas e a `DJANGO_SECRET_KEY` (o `docker/.env` não é versionado). Depois:
+
+```
+docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build
+```
+
+A API sobe em http://127.0.0.1:8000/api/docs só depois que o MySQL aceita conexões, e as migrations são aplicadas automaticamente a cada subida. Os dados do MySQL e os documentos enviados ficam em volumes do Docker e sobrevivem a um `down` (`down -v` apaga tudo).
+
+Para rodar a suíte de testes contra o MySQL do compose:
+
+```
+docker compose -f docker/docker-compose.yml --env-file docker/.env --profile testes run --rm testes
 ```
 
 ## Banco local e Django Admin

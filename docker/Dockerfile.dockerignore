@@ -11,3 +11,4 @@ uploads
 docs
 testes
 docker
+!docker/entrypoint.sh

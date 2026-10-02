@@ -36,8 +36,12 @@ COPY api/ api/
 # em /app (banco SQLite quando não há MYSQL_HOST) e nos uploads.
 RUN mkdir -p "$DIRETORIO_ESCOPOS" && chown app:app /app && chown -R app:app /app/uploads
 
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 USER app
 EXPOSE 8000
+ENTRYPOINT ["entrypoint.sh"]
 
 # Timeout alto porque a geração de casos espera a resposta completa da IA,
 # que leva minutos num escopo grande; com o padrão (30 s) o worker seria morto.

@@ -2,7 +2,7 @@
 
 > Documento técnico de apoio ao desenvolvimento. Complementa `docs/escopo-projeto.docx` (visão de negócio/PDI) com decisões de arquitetura e o cronograma semana a semana até a apresentação de outubro/2026.
 
-**Versão:** 2.6
+**Versão:** 2.7
 **Data:** 02/10/2026
 **Projeto:** todo-avancado (PDI 2026-2027 — Cleiton Ferreira)
 
@@ -22,6 +22,7 @@
 | 2.4 | 30/09/2026 | Semana 7 iniciada: revisão do Swagger/OpenAPI (resumos, tags na ordem do fluxo, exemplos de corpo, tabela de erros); documento de escopo ilegível passa a ser recusado com 400 no envio e na geração, em vez de 500 |
 | 2.5 | 30/09/2026 | Escopo só em `.docx` (D4); extração passa a ler tabelas; documento sem texto recusado; resposta da IA cortada ou recusada tratada; chamada à IA via streaming |
 | 2.6 | 02/10/2026 | Nome de projeto único (sem diferenciar maiúsculas); falta de credencial da IA vira 503; Dockerfile da API (`docker/Dockerfile`), validado também contra MySQL 8.4 |
+| 2.7 | 02/10/2026 | Semana 8 iniciada: `docker-compose` (API + MySQL 8.4) com migrations na subida e suíte de testes contra o MySQL; corpo de requisição ilegível passa a seguir o formato padrão de erro (`corpo_invalido`) |
 
 ---
 
@@ -128,6 +129,7 @@ Os routers não tratam erros. Os exception handlers registrados em `api/config/a
 | Exceção | HTTP | `codigo` | Quando |
 |---|---|---|---|
 | Validação dos Schemas do Ninja (tipo errado, enum fora do domínio, campo faltando) | 422 | `dados_invalidos` | Antes de chegar ao core |
+| `HttpError` do Ninja (corpo que não é JSON legível: sintaxe errada ou texto fora de UTF-8) | 400 | `corpo_invalido` | Antes da validação dos Schemas. Sem esse handler, o Ninja respondia `{"detail": "Cannot parse request body"}`, em inglês, sem `codigo` e, com `DEBUG`, com o erro interno do parser |
 | `RegraDeNegocioViolada`, `FormatoDocumentoNaoSuportado`, `DocumentoIlegivel`, `DocumentoSemTexto` | 400 | `regra_de_negocio` | Uma regra da seção 3 recusou a operação (texto vazio, datas invertidas, status inválido, defeito em execução que não falhou, id de caso inexistente no corpo, documento de escopo corrompido, só renomeado para .docx ou sem texto) |
 | `OperacaoEmConflito` (subclasse de `RegraDeNegocioViolada`) e `IntegrityError` do banco | 409 | `conflito` | O pedido é válido, mas colide com um registro existente: nome de projeto repetido, código repetido no escopo, caso já na rodada, escopo já processado, exclusão de caso com histórico. O `IntegrityError` cobre gravações simultâneas que passem pela validação do serviço e esbarrem na constraint do banco |
 | `Http404` (`rotas.comum.obter_ou_404`) | 404 | `nao_encontrado` | Recurso do caminho da URL inexistente, com mensagem em português e o id buscado (ex.: "Rodada de execução 42 não encontrada.") |
@@ -305,4 +307,6 @@ Ainda em 30/09/2026, preparando os testes com escopos reais: escopo só em .docx
 
 Em 02/10/2026: teste manual de todas as rotas da API com `curl` (sem falhas); falta de credencial do provedor de IA passa a responder 503 em vez de 500; nome de projeto único (seção 3); Dockerfile da API em `docker/Dockerfile` (multi-stage, Python 3.13, usuário não-root com código só leitura, `gunicorn` com timeout de 300 s por causa da geração via IA). A imagem foi validada rodando sozinha (SQLite) e contra um MySQL 8.4 temporário, com as migrations aplicadas. São 140 testes passando. A branch `main` só será criada no deploy final, com o projeto concluído.
 
-Próximo passo (Semana 8): `docker-compose` (API + MySQL 8.4) com migrations aplicadas na subida, testes end-to-end containerizados e documentação de uso da API.
+Semana 8 iniciada em 02/10/2026: `docker/docker-compose.yml` com a API e o MySQL 8.4. A API só sobe quando o MySQL aceita conexões do usuário da aplicação (healthcheck), as migrations são aplicadas a cada subida (`docker/entrypoint.sh`), e os dados do MySQL e os uploads ficam em volumes. O serviço `testes` (perfil `testes`) roda a suíte inteira contra o MySQL; para isso, `docker/mysql-init/` dá ao usuário da aplicação permissão no banco `test_casos_teste`, que o pytest-django cria a cada execução. Um fluxo ponta a ponta pelo HTTP (projeto → escopo → casos → rodada → execuções → defeito), com derrubada e nova subida dos containers no meio, confirmou que os dados persistem. Nesse teste apareceu o corpo ilegível fora do formato padrão de erro, corrigido com o código `corpo_invalido`. São 142 testes passando, no SQLite e no MySQL.
+
+Próximo passo (Semana 8): documentação de uso da API.
